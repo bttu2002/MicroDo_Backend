@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/database';
 import authRoutes from './routes/authRoutes';
+import { protect, AuthRequest } from './middleware/authMiddleware';
 
 // Load environment variables
 dotenv.config();
@@ -19,6 +20,17 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+
+// Protected test route (to verify auth middleware)
+app.get('/api/protected', protect, (req: AuthRequest, res: Response) => {
+  res.json({
+    success: true,
+    message: 'You have access to this protected route',
+    data: {
+      user: req.user,
+    },
+  });
+});
 
 // Health check route
 app.get('/', (req: Request, res: Response) => {

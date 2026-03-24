@@ -1,26 +1,40 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import connectDB from './config/database';
 
+// Load environment variables
 dotenv.config();
+
+// Connect to MongoDB
+connectDB();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
+// Health check route
 app.get('/', (req: Request, res: Response) => {
   res.json({
-    message: 'Welcome to MicroDo_Backend API',
-    status: 'online'
+    message: 'Welcome to MicroDo Backend API',
+    status: 'online',
+    version: '1.0.0',
   });
 });
 
 app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+  });
 });
 
+// Start server
 app.listen(port, () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);
 });
+
+export default app;

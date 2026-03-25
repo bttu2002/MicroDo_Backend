@@ -7,10 +7,10 @@
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
-    "module": "commonjs",
-    "target": "es2020",
+    "module": "Node16",
+    "target": "es2022",
     "types": [],
-    "lib": ["es2020"],
+    "lib": ["es2022"],
     // For nodejs:
     // "lib": ["esnext"],
     // "types": ["node"],
@@ -35,7 +35,6 @@
 
     // Recommended Options
     "strict": true,
-    "jsx": "react-jsx",
     "verbatimModuleSyntax": false,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
@@ -44,8 +43,7 @@
 
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "ignoreDeprecations": "6.0",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
+    "moduleResolution": "Node16",
+    "resolveJsonModule": true
   }
 }

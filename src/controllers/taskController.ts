@@ -82,13 +82,30 @@ export const getTasks = async (
       filter.title = { $regex: search as string, $options: 'i' };
     }
 
-    const tasks = await Task.find(filter).sort({
-      createdAt: -1,
-    });
+    // Feature 11: Pagination
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
+    const skip = (page - 1) * limit;
+
+    const totalTasks = await Task.countDocuments(filter);
+    const totalPages = Math.ceil(totalTasks / limit);
+
+    const tasks = await Task.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
     res.status(200).json({
       success: true,
       count: tasks.length,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalTasks,
+        limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
       data: tasks,
     });
   } catch (error) {

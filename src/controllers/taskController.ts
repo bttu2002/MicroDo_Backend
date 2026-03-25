@@ -60,8 +60,29 @@ export const getTasks = async (
   res: Response
 ): Promise<void> => {
   try {
-    // Get all tasks for the authenticated user
-    const tasks = await Task.find({ userId: req.user!.id }).sort({
+    // Build filter query
+    const filter: Record<string, unknown> = { userId: req.user!.id };
+
+    // Feature 9: Filter by status
+    const { status, search } = req.query;
+    if (status) {
+      const validStatuses = ['todo', 'doing', 'done'];
+      if (!validStatuses.includes(status as string)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid status. Must be: todo, doing, or done',
+        });
+        return;
+      }
+      filter.status = status;
+    }
+
+    // Feature 10: Search by title
+    if (search) {
+      filter.title = { $regex: search as string, $options: 'i' };
+    }
+
+    const tasks = await Task.find(filter).sort({
       createdAt: -1,
     });
 

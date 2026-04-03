@@ -7,7 +7,7 @@ export const createTask = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, description, status, deadline } = req.body;
+    const { title, description, status, priority, deadline } = req.body;
 
     // Validate required field
     if (!title) {
@@ -23,6 +23,7 @@ export const createTask = async (
       title,
       description: description || '',
       status: status || 'todo',
+      priority: priority || 'medium',
       deadline: deadline || null,
       userId: req.user!.id,
     });
@@ -63,8 +64,8 @@ export const getTasks = async (
     // Build filter query
     const filter: Record<string, unknown> = { userId: req.user!.id };
 
-    // Feature 9: Filter by status
-    const { status, search } = req.query;
+    // Filter by status and priority
+    const { status, priority, search } = req.query;
     if (status) {
       const validStatuses = ['todo', 'doing', 'done'];
       if (!validStatuses.includes(status as string)) {
@@ -75,6 +76,18 @@ export const getTasks = async (
         return;
       }
       filter.status = status;
+    }
+
+    if (priority) {
+      const validPriorities = ['low', 'medium', 'high'];
+      if (!validPriorities.includes(priority as string)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid priority. Must be: low, medium, or high',
+        });
+        return;
+      }
+      filter.priority = priority;
     }
 
     // Feature 10: Search by title
@@ -136,7 +149,7 @@ export const updateTask = async (
 ): Promise<void> => {
   try {
     const taskId = req.params.id as string;
-    const { title, description, status, deadline } = req.body;
+    const { title, description, status, priority, deadline } = req.body;
 
     // Find task by id AND userId (ownership check)
     const task = await Task.findById(taskId);
@@ -162,6 +175,7 @@ export const updateTask = async (
     if (title !== undefined) task.title = title;
     if (description !== undefined) task.description = description;
     if (status !== undefined) task.status = status;
+    if (priority !== undefined) task.priority = priority;
     if (deadline !== undefined) task.deadline = deadline;
 
     const updatedTask = await task.save();

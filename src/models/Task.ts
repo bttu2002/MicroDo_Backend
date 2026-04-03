@@ -4,6 +4,7 @@ export interface ITask extends Document {
   title: string;
   description: string;
   status: 'todo' | 'doing' | 'done';
+  priority: 'low' | 'medium' | 'high';
   deadline: Date;
   userId: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -31,6 +32,14 @@ const taskSchema = new Schema<ITask>(
         message: 'Status must be: todo, doing, or done',
       },
       default: 'todo',
+    },
+    priority: {
+      type: String,
+      enum: {
+        values: ['low', 'medium', 'high'],
+        message: 'Priority must be: low, medium, or high',
+      },
+      default: 'medium',
     },
     deadline: {
       type: Date,

@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { register, login, forgotPassword, resetPassword } from '../controllers/authController';
+import { register, login, forgotPassword, resetPassword, changePassword } from '../controllers/authController';
+import { protect } from '../middleware/authMiddleware';
 
 const router = Router();
 
@@ -14,5 +15,8 @@ router.post('/forgot-password', forgotPassword);
 
 // POST /api/auth/reset-password
 router.post('/reset-password', resetPassword);
+
+// PUT /api/auth/change-password
+router.put('/change-password', protect, changePassword);
 
 export default router;

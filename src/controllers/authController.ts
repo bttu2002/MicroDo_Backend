@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/authMiddleware';
 import crypto from 'crypto';
 import User from '../models/User';
 import { generateToken } from '../utils/jwt';
@@ -255,6 +256,70 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     if (error instanceof Error) {
+      res.status(500).json({
+        success: false,
+        message: 'Server error',
+        error: error.message,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Unknown server error',
+      });
+    }
+  }
+};
+
+export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide current and new password',
+      });
+      return;
+    }
+
+    // Find the current user
+    const user = await User.findById(req.user!.id);
+    
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User no longer exists',
+      });
+      return;
+    }
+
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect',
+      });
+      return;
+    }
+
+    // Update password (the pre-save hook will hash it)
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password successfully changed',
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.name === 'ValidationError') {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+        return;
+      }
       res.status(500).json({
         success: false,
         message: 'Server error',

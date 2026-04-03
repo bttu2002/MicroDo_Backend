@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
-import { createTask, getTasks, updateTask, deleteTask } from '../controllers/taskController';
+import { createTask, getTasks, updateTask, deleteTask, getTaskStats } from '../controllers/taskController';
 
 const router = Router();
 
@@ -12,6 +12,9 @@ router.post('/', createTask);
 
 // GET /api/tasks
 router.get('/', getTasks);
+
+// GET /api/tasks/stats
+router.get('/stats', getTaskStats);
 
 // PUT /api/tasks/:id
 router.put('/:id', updateTask);

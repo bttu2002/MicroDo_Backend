@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/authMiddleware';
 import Task from '../models/Task';
 
@@ -260,5 +261,39 @@ export const deleteTask = async (
         message: 'Unknown server error',
       });
     }
+  }
+};
+
+export const getTaskStats = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const stats = await Task.aggregate([
+      { $match: { userId: new mongoose.Types.ObjectId(req.user!.id) } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    const result = {
+      total: 0,
+      todo: 0,
+      doing: 0,
+      done: 0
+    };
+
+    stats.forEach(stat => {
+      if (stat._id === 'todo') result.todo = stat.count;
+      else if (stat._id === 'doing') result.doing = stat.count;
+      else if (stat._id === 'done') result.done = stat.count;
+      result.total += stat.count;
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };

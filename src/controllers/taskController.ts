@@ -7,7 +7,7 @@ export const createTask = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, description, status, priority, deadline } = req.body;
+    const { title, description, status, priority, tags, deadline } = req.body;
 
     // Validate required field
     if (!title) {
@@ -24,6 +24,7 @@ export const createTask = async (
       description: description || '',
       status: status || 'todo',
       priority: priority || 'medium',
+      tags: tags || [],
       deadline: deadline || null,
       userId: req.user!.id,
     });
@@ -64,8 +65,8 @@ export const getTasks = async (
     // Build filter query
     const filter: Record<string, unknown> = { userId: req.user!.id };
 
-    // Filter by status and priority
-    const { status, priority, search } = req.query;
+    // Filter by status, priority, tag
+    const { status, priority, search, tag } = req.query;
     if (status) {
       const validStatuses = ['todo', 'doing', 'done'];
       if (!validStatuses.includes(status as string)) {
@@ -88,6 +89,10 @@ export const getTasks = async (
         return;
       }
       filter.priority = priority;
+    }
+
+    if (tag) {
+      filter.tags = tag;
     }
 
     // Feature 10: Search by title
@@ -149,7 +154,7 @@ export const updateTask = async (
 ): Promise<void> => {
   try {
     const taskId = req.params.id as string;
-    const { title, description, status, priority, deadline } = req.body;
+    const { title, description, status, priority, tags, deadline } = req.body;
 
     // Find task by id AND userId (ownership check)
     const task = await Task.findById(taskId);
@@ -176,6 +181,7 @@ export const updateTask = async (
     if (description !== undefined) task.description = description;
     if (status !== undefined) task.status = status;
     if (priority !== undefined) task.priority = priority;
+    if (tags !== undefined) task.tags = tags;
     if (deadline !== undefined) task.deadline = deadline;
 
     const updatedTask = await task.save();

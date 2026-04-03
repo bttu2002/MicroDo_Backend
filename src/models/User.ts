@@ -4,6 +4,8 @@ import bcrypt from 'bcrypt';
 export interface IUser extends Document {
   email: string;
   password: string;
+  passwordResetToken?: string | undefined;
+  passwordResetExpires?: Date | undefined;
   createdAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
@@ -22,6 +24,12 @@ const userSchema = new Schema<IUser>(
       type: String,
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters'],
+    },
+    passwordResetToken: {
+      type: String,
+    },
+    passwordResetExpires: {
+      type: Date,
     },
   },
   {

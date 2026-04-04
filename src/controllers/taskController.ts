@@ -109,11 +109,14 @@ export const getTasks = async (
     const totalTasks = await Task.countDocuments(filter);
     const totalPages = Math.ceil(totalTasks / limit);
 
-    // Feature 12: Sort by deadline or createdAt
+    // Feature 12: Sort by deadline, createdAt, priority, etc.
     const sortBy = req.query.sortBy as string;
     const order = (req.query.order as string) === 'asc' ? 1 : -1;
-    const sortOption: Record<string, 1 | -1> =
-      sortBy === 'deadline' ? { deadline: order } : { createdAt: order };
+    
+    // Default to createdAt if no valid sortBy is provided
+    const validSortFields = ['deadline', 'createdAt', 'priority', 'status', 'title'];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const sortOption: Record<string, 1 | -1> = { [sortField]: order };
 
     const tasks = await Task.find(filter)
       .sort(sortOption)

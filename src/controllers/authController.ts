@@ -164,7 +164,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     // Send email
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
-    const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a PUT request to: \n\n ${resetUrl} \n\n This link is valid for 15 minutes.`;
+    const message = `You are receiving this email because you (or someone else) has requested the reset of a password.\n\nPlease click the link below to reset your password:\n\n${resetUrl}\n\nThis link is valid for 15 minutes.\n\nIf you did not request this, please ignore this email.`;
 
     try {
       await sendEmail({

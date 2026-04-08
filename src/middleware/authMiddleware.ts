@@ -7,6 +7,7 @@ export interface AuthRequest extends Request {
   user?: {
     id: string;
     email: string;
+    role: string;
   };
 }
 
@@ -46,10 +47,19 @@ export const protect = async (
       return;
     }
 
+    if (user.status === 'BANNED') {
+      res.status(403).json({
+        success: false,
+        message: 'Your account has been banned',
+      });
+      return;
+    }
+
     // Attach user to request
     req.user = {
       id: user._id.toString(),
       email: user.email,
+      role: user.role || 'USER',
     };
 
     next();

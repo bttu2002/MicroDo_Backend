@@ -37,6 +37,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       data: {
         id: user._id,
         email: user.email,
+        role: user.role,
+        status: user.status,
         createdAt: user.createdAt,
       },
     });
@@ -97,6 +99,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    if (user.status === 'BANNED') {
+      res.status(403).json({
+        success: false,
+        message: 'Your account has been banned',
+      });
+      return;
+    }
+
     // Generate JWT token
     const token = generateToken(user._id.toString());
 
@@ -106,6 +116,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       data: {
         id: user._id,
         email: user.email,
+        role: user.role,
+        status: user.status,
         token,
       },
     });

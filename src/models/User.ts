@@ -6,6 +6,8 @@ export interface IUser extends Document {
   avatar?: string | undefined;
   email: string;
   password: string;
+  role: 'USER' | 'ADMIN';
+  status: 'ACTIVE' | 'BANNED';
   passwordResetToken?: string | undefined;
   passwordResetExpires?: Date | undefined;
   createdAt: Date;
@@ -34,6 +36,16 @@ const userSchema = new Schema<IUser>(
       type: String,
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters'],
+    },
+    role: {
+      type: String,
+      enum: ['USER', 'ADMIN'],
+      default: 'USER',
+    },
+    status: {
+      type: String,
+      enum: ['ACTIVE', 'BANNED'],
+      default: 'ACTIVE',
     },
     passwordResetToken: {
       type: String,

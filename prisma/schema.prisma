@@ -8,58 +8,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model departments {
-  id          String     @id
-  name        String     @unique
-  description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime
-  profiles    profiles[]
-  tasks       tasks[]
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model profiles {
-  id                   String       @id
-  email                String       @unique
-  name                 String?
-  avatar               String?
-  passwordHash         String
-  role                 Role         @default(USER)
-  status               UserStatus   @default(ACTIVE)
-  passwordResetToken   String?
-  passwordResetExpires DateTime?
-  mongoId              String?      @unique
-  departmentId         String?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime
-  departments          departments? @relation(fields: [departmentId], references: [id])
-  tasks                tasks[]
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model tasks {
-  id           String       @id
-  title        String
-  description  String       @default("")
-  status       TaskStatus   @default(TODO)
-  priority     TaskPriority @default(MEDIUM)
-  tags         String[]
-  deadline     DateTime?
-  mongoId      String?      @unique
-  profileId    String
-  departmentId String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime
-  departments  departments? @relation(fields: [departmentId], references: [id])
-  profiles     profiles     @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([departmentId])
-  @@index([profileId])
-  @@index([status])
-}
-
 enum Role {
   USER
   ADMIN
@@ -67,10 +15,9 @@ enum Role {
   DEPT_MEMBER
 }
 
-enum TaskPriority {
-  LOW
-  MEDIUM
-  HIGH
+enum UserStatus {
+  ACTIVE
+  BANNED
 }
 
 enum TaskStatus {
@@ -79,7 +26,62 @@ enum TaskStatus {
   DONE
 }
 
-enum UserStatus {
-  ACTIVE
-  BANNED
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Profile {
+  id                   String      @id @default(uuid())
+  email                String      @unique
+  name                 String?
+  avatar               String?
+  passwordHash         String
+  role                 Role        @default(USER)
+  status               UserStatus  @default(ACTIVE)
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+  mongoId              String?     @unique    // ← liên kết với MongoDB _id
+  departmentId         String?
+  department           Department? @relation(fields: [departmentId], references: [id])
+  tasks                Task[]
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  @@map("profiles")
+}
+
+model Department {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  members     Profile[]
+  tasks       Task[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("departments")
+}
+
+model Task {
+  id           String       @id @default(uuid())
+  title        String
+  description  String       @default("")
+  status       TaskStatus   @default(TODO)
+  priority     TaskPriority @default(MEDIUM)
+  tags         String[]
+  deadline     DateTime?
+  mongoId      String?      @unique    // ← liên kết với MongoDB _id
+  profileId    String
+  profile      Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  departmentId String?
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([profileId])
+  @@index([departmentId])
+  @@index([status])
+  @@map("tasks")
 }

@@ -1,13 +1,85 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model departments {
+  id          String     @id
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  profiles    profiles[]
+  tasks       tasks[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model profiles {
+  id                   String       @id
+  email                String       @unique
+  name                 String?
+  avatar               String?
+  passwordHash         String
+  role                 Role         @default(USER)
+  status               UserStatus   @default(ACTIVE)
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+  mongoId              String?      @unique
+  departmentId         String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime
+  departments          departments? @relation(fields: [departmentId], references: [id])
+  tasks                tasks[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model tasks {
+  id           String       @id
+  title        String
+  description  String       @default("")
+  status       TaskStatus   @default(TODO)
+  priority     TaskPriority @default(MEDIUM)
+  tags         String[]
+  deadline     DateTime?
+  mongoId      String?      @unique
+  profileId    String
+  departmentId String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime
+  departments  departments? @relation(fields: [departmentId], references: [id])
+  profiles     profiles     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([departmentId])
+  @@index([profileId])
+  @@index([status])
+}
+
+enum Role {
+  USER
+  ADMIN
+  DEPT_MANAGER
+  DEPT_MEMBER
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  TODO
+  DOING
+  DONE
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
 }

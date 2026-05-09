@@ -18,7 +18,7 @@
   "license": "ISC",
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@prisma/client": "^5.21.1",
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -38,7 +38,7 @@
   "devDependencies": {
     "@types/pg": "^8.20.0",
     "nodemon": "^3.1.14",
-    "prisma": "^7.8.0",
+    "prisma": "^5.21.1",
     "ts-node": "^10.9.2"
   }
 }

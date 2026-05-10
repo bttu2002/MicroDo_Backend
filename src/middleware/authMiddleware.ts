@@ -5,9 +5,12 @@ import User from '../models/User';
 // Extend Express Request to include user
 export interface AuthRequest extends Request {
   user?: {
-    id: string;
+    id: string; // Mongo ID
     email: string;
     role: string;
+    // --- Added for Phase 2 Department Scoping ---
+    departmentId?: string | null;
+    departmentRole?: string | null; // e.g., 'DEPT_MANAGER', 'DEPT_MEMBER', 'USER', 'ADMIN'
   };
 }
 

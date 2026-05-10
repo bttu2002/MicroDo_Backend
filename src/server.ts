@@ -6,6 +6,7 @@ import authRoutes from './routes/authRoutes';
 import taskRoutes from './routes/taskRoutes';
 import userRoutes from './routes/userRoutes';
 import adminRoutes from './routes/adminRoutes';
+import departmentRoutes from './routes/departmentRoutes';
 import { protect, AuthRequest } from './middleware/authMiddleware';
 
 // Load environment variables
@@ -44,6 +45,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/departments', departmentRoutes);
 
 // Protected test route (to verify auth middleware)
 app.get('/api/protected', protect, (req: AuthRequest, res: Response) => {

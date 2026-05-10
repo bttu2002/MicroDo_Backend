@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
 import { adminOnly } from '../middleware/adminMiddleware';
 import { getDashboard, getUsers, banUser, unbanUser } from '../controllers/adminController';
+import { assignUserToDepartment, removeUserFromDepartment } from '../controllers/departmentController';
 
 const router = Router();
 
@@ -20,5 +21,11 @@ router.patch('/users/:id/ban', banUser);
 
 // PATCH /api/admin/users/:id/unban
 router.patch('/users/:id/unban', unbanUser);
+
+// PATCH /api/admin/users/:id/department
+router.patch('/users/:id/department', assignUserToDepartment);
+
+// DELETE /api/admin/users/:id/department
+router.delete('/users/:id/department', removeUserFromDepartment);
 
 export default router;

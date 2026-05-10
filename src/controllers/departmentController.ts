@@ -175,3 +175,87 @@ export const deleteDepartment = async (
     });
   }
 };
+
+/**
+ * @desc    Assign a user to a department
+ * @route   PATCH /api/admin/users/:id/department
+ * @access  Private/Admin
+ */
+export const assignUserToDepartment = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const mongoUserId = req.params.id as string;
+    const { departmentId } = req.body;
+
+    if (!departmentId) {
+      res.status(400).json({
+        success: false,
+        message: 'departmentId is required in the request body',
+      });
+      return;
+    }
+
+    const profile = await departmentService.assignUserToDepartment(
+      mongoUserId,
+      departmentId
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'User successfully assigned to department',
+      data: profile,
+    });
+  } catch (error) {
+    if (error instanceof departmentService.ServiceError) {
+      res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+      return;
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
+/**
+ * @desc    Remove a user from their department
+ * @route   DELETE /api/admin/users/:id/department
+ * @access  Private/Admin
+ */
+export const removeUserFromDepartment = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const mongoUserId = req.params.id as string;
+
+    const profile = await departmentService.removeUserFromDepartment(mongoUserId);
+
+    res.status(200).json({
+      success: true,
+      message: 'User successfully removed from department',
+      data: profile,
+    });
+  } catch (error) {
+    if (error instanceof departmentService.ServiceError) {
+      res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+      return;
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};

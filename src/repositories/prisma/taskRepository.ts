@@ -1,5 +1,9 @@
 import prisma from '../../config/prisma';
-import { ITaskRepository } from '../interfaces';
+import {
+  ITaskRepository,
+  CreateTaskData,
+  UpdateTaskData,
+} from '../interfaces';
 import { Task } from '@prisma/client';
 
 export class PrismaTaskRepository implements ITaskRepository {
@@ -11,11 +15,11 @@ export class PrismaTaskRepository implements ITaskRepository {
     return prisma.task.findMany({ where: { profileId } });
   }
 
-  async create(data: any): Promise<Task> {
+  async create(data: CreateTaskData): Promise<Task> {
     return prisma.task.create({ data });
   }
 
-  async update(id: string, data: any): Promise<Task> {
+  async update(id: string, data: UpdateTaskData): Promise<Task> {
     return prisma.task.update({
       where: { id },
       data,
@@ -26,3 +30,4 @@ export class PrismaTaskRepository implements ITaskRepository {
     await prisma.task.delete({ where: { id } });
   }
 }
+

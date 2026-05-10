@@ -83,5 +83,9 @@ model Task {
   @@index([profileId])
   @@index([departmentId])
   @@index([status])
+  @@index([title]) // For text search queries
+  @@index([createdAt]) // For default sorting
+  @@index([profileId, status]) // Composite index for user dashboard filtering
+  @@index([departmentId, status]) // Composite index for department board filtering
   @@map("tasks")
 }

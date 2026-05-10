@@ -35,8 +35,8 @@ export interface UpdateDepartmentData {
 export interface CreateTaskData {
   title: string;
   description?: string;
-  status?: 'TODO' | 'DOING' | 'DONE';
-  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  status?: 'todo' | 'doing' | 'done';
+  priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: Date;
   profileId: string;
@@ -47,8 +47,8 @@ export interface CreateTaskData {
 export interface UpdateTaskData {
   title?: string;
   description?: string;
-  status?: 'TODO' | 'DOING' | 'DONE';
-  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  status?: 'todo' | 'doing' | 'done';
+  priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: Date | null;
   departmentId?: string | null;

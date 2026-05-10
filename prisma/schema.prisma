@@ -21,15 +21,15 @@ enum UserStatus {
 }
 
 enum TaskStatus {
-  TODO
-  DOING
-  DONE
+  todo
+  doing
+  done
 }
 
 enum TaskPriority {
-  LOW
-  MEDIUM
-  HIGH
+  low
+  medium
+  high
 }
 
 model Profile {
@@ -68,8 +68,8 @@ model Task {
   id           String       @id @default(uuid())
   title        String
   description  String       @default("")
-  status       TaskStatus   @default(TODO)
-  priority     TaskPriority @default(MEDIUM)
+  status       TaskStatus   @default(todo)
+  priority     TaskPriority @default(medium)
   tags         String[]
   deadline     DateTime?
   mongoId      String?      @unique    // ← liên kết với MongoDB _id

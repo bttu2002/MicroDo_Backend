@@ -271,28 +271,11 @@ export const deleteTask = async (
 
 export const getTaskStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const stats = await Task.aggregate([
-      { $match: { userId: new mongoose.Types.ObjectId(req.user!.id) } },
-      { $group: { _id: '$status', count: { $sum: 1 } } }
-    ]);
-
-    const result = {
-      total: 0,
-      todo: 0,
-      doing: 0,
-      done: 0
-    };
-
-    stats.forEach(stat => {
-      if (stat._id === 'todo') result.todo = stat.count;
-      else if (stat._id === 'doing') result.doing = stat.count;
-      else if (stat._id === 'done') result.done = stat.count;
-      result.total += stat.count;
-    });
+    const stats = await taskService.getTaskStats(req.user!.id);
 
     res.status(200).json({
       success: true,
-      data: result
+      data: stats,
     });
   } catch (error) {
     if (error instanceof TaskServiceError) {

@@ -2,7 +2,14 @@ import { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/authMiddleware';
 import Task from '../models/Task';
-import { TaskServiceError } from '../services/taskService';
+import { TaskService, TaskServiceError } from '../services/taskService';
+import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
+import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
+
+const taskService = new TaskService(
+  new PrismaTaskRepository(),
+  new PrismaProfileRepository()
+);
 
 export const createTask = async (
   req: AuthRequest,
@@ -236,29 +243,7 @@ export const deleteTask = async (
   res: Response
 ): Promise<void> => {
   try {
-    const taskId = req.params.id as string;
-
-    // Find task by id
-    const task = await Task.findById(taskId);
-
-    if (!task) {
-      res.status(404).json({
-        success: false,
-        message: 'Task not found',
-      });
-      return;
-    }
-
-    // Verify ownership
-    if (task.userId.toString() !== req.user!.id) {
-      res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this task',
-      });
-      return;
-    }
-
-    await Task.findByIdAndDelete(taskId);
+    await taskService.deleteTask(req.user!.id, req.params.id as string);
 
     res.status(200).json({
       success: true,

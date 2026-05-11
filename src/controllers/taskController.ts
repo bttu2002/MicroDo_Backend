@@ -153,38 +153,11 @@ export const updateTask = async (
   res: Response
 ): Promise<void> => {
   try {
-    const taskId = req.params.id as string;
-    const { title, description, status, priority, tags, deadline } = req.body;
-
-    // Find task by id AND userId (ownership check)
-    const task = await Task.findById(taskId);
-
-    if (!task) {
-      res.status(404).json({
-        success: false,
-        message: 'Task not found',
-      });
-      return;
-    }
-
-    // Verify ownership
-    if (task.userId.toString() !== req.user!.id) {
-      res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this task',
-      });
-      return;
-    }
-
-    // Update only provided fields
-    if (title !== undefined) task.title = title;
-    if (description !== undefined) task.description = description;
-    if (status !== undefined) task.status = status;
-    if (priority !== undefined) task.priority = priority;
-    if (tags !== undefined) task.tags = tags;
-    if (deadline !== undefined) task.deadline = deadline;
-
-    const updatedTask = await task.save();
+    const updatedTask = await taskService.updateTask(
+      req.user!.id,
+      req.params.id as string,
+      req.body
+    );
 
     res.status(200).json({
       success: true,

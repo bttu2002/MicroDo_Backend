@@ -1,7 +1,5 @@
 import { Response } from 'express';
-import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/authMiddleware';
-import Task from '../models/Task';
 import { TaskService, TaskServiceError, GetTasksInput } from '../services/taskService';
 import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';

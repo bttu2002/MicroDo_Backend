@@ -54,6 +54,44 @@ export interface UpdateTaskData {
   departmentId?: string | null;
 }
 
+export interface TaskFilterOptions {
+  status?: string;
+  priority?: string;
+  tag?: string;
+  search?: string;
+}
+
+export interface TaskSortOptions {
+  sortBy?: 'deadline' | 'createdAt' | 'priority' | 'status' | 'title';
+  order?: 'asc' | 'desc';
+}
+
+export interface TaskPaginationOptions {
+  page?: number;
+  limit?: number;
+}
+
+export interface FindManyPaginatedOptions {
+  profileId: string;        // Prisma profile UUID
+  filter?: TaskFilterOptions;
+  sort?: TaskSortOptions;
+  pagination?: TaskPaginationOptions;
+}
+
+export interface PaginatedTasksResult {
+  tasks: Task[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface TaskStatsResult {
+  total: number;
+  todo: number;
+  doing: number;
+  done: number;
+}
+
 // ─── Department with members (for queries that include relations) ───
 
 export interface DepartmentWithMembers extends Department {
@@ -95,9 +133,20 @@ export interface IDepartmentRepository {
 }
 
 export interface ITaskRepository {
+  // ── Single record ──
   findById(id: string): Promise<Task | null>;
+  findByIdOrMongoId(id: string): Promise<Task | null>; // Hybrid: UUID or MongoId
+
+  // ── Collection ──
   findByProfile(profileId: string): Promise<Task[]>;
+  findManyPaginated(options: FindManyPaginatedOptions): Promise<PaginatedTasksResult>;
+
+  // ── Write ──
   create(data: CreateTaskData): Promise<Task>;
   update(id: string, data: UpdateTaskData): Promise<Task>;
   delete(id: string): Promise<void>;
+
+  // ── Aggregation ──
+  count(profileId: string): Promise<number>;
+  statsByStatus(profileId: string): Promise<TaskStatsResult>;
 }

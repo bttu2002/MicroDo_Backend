@@ -2,7 +2,7 @@ import { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/authMiddleware';
 import Task from '../models/Task';
-import { TaskService, TaskServiceError } from '../services/taskService';
+import { TaskService, TaskServiceError, GetTasksInput } from '../services/taskService';
 import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
 
@@ -55,79 +55,26 @@ export const getTasks = async (
   res: Response
 ): Promise<void> => {
   try {
-    // Build filter query
-    const filter: Record<string, unknown> = { userId: req.user!.id };
+    const page     = Number(req.query.page)  || 1;
+    const limit    = Number(req.query.limit) || 10;
+    const status   = req.query.status   as string | undefined;
+    const priority = req.query.priority as string | undefined;
+    const search   = req.query.search   as string | undefined;
+    const tag      = req.query.tag      as string | undefined;
+    const sortBy   = req.query.sortBy   as GetTasksInput['sortBy'];
+    const order    = req.query.order    as GetTasksInput['order'];
 
-    // Filter by status, priority, tag
-    const { status, priority, search, tag } = req.query;
-    if (status) {
-      const validStatuses = ['todo', 'doing', 'done'];
-      if (!validStatuses.includes(status as string)) {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid status. Must be: todo, doing, or done',
-        });
-        return;
-      }
-      filter.status = status;
-    }
+    const query: GetTasksInput = { page, limit };
+    if (status)   query.status   = status;
+    if (priority) query.priority = priority;
+    if (search)   query.search   = search;
+    if (tag)      query.tag      = tag;
+    if (sortBy)   query.sortBy   = sortBy;
+    if (order)    query.order    = order;
 
-    if (priority) {
-      const validPriorities = ['low', 'medium', 'high'];
-      if (!validPriorities.includes(priority as string)) {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid priority. Must be: low, medium, or high',
-        });
-        return;
-      }
-      filter.priority = priority;
-    }
+    const result = await taskService.getTasks(req.user!.id, query);
 
-    if (tag) {
-      filter.tags = tag;
-    }
-
-    // Feature 10: Search by title
-    if (search) {
-      filter.title = { $regex: search as string, $options: 'i' };
-    }
-
-    // Feature 11: Pagination
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
-    const skip = (page - 1) * limit;
-
-    const totalTasks = await Task.countDocuments(filter);
-    const totalPages = Math.ceil(totalTasks / limit);
-
-    // Feature 12: Sort by deadline, createdAt, priority, etc.
-    const sortBy = req.query.sortBy as string;
-    const order = (req.query.order as string) === 'asc' ? 1 : -1;
-    
-    // Default to createdAt if no valid sortBy is provided
-    const validSortFields = ['deadline', 'createdAt', 'priority', 'status', 'title'];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
-    const sortOption: Record<string, 1 | -1> = { [sortField]: order };
-
-    const tasks = await Task.find(filter)
-      .sort(sortOption)
-      .skip(skip)
-      .limit(limit);
-
-    res.status(200).json({
-      success: true,
-      count: tasks.length,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalTasks,
-        limit,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
-      },
-      data: tasks,
-    });
+    res.status(200).json(result);
   } catch (error) {
     if (error instanceof TaskServiceError) {
       res.status(error.statusCode).json({ success: false, message: error.message });

@@ -107,6 +107,14 @@ export class TaskService {
     const profile     = await this.resolveProfileByMongoUserId(mongoUserId);
     const scopeFilter = buildScopedTaskFilter(mongoUserId, profile.departmentId, profile.role);
 
+    if (query.status && !['todo', 'doing', 'done'].includes(query.status)) {
+      throw new TaskServiceError('Invalid status. Must be: todo, doing, or done', 400);
+    }
+
+    if (query.priority && !['low', 'medium', 'high'].includes(query.priority)) {
+      throw new TaskServiceError('Invalid priority. Must be: low, medium, or high', 400);
+    }
+
     const filter: TaskFilterOptions = {};
     if (query.status)   filter.status   = query.status;
     if (query.priority) filter.priority = query.priority;

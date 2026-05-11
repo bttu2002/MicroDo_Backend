@@ -16,27 +16,7 @@ export const createTask = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, description, status, priority, tags, deadline } = req.body;
-
-    // Validate required field
-    if (!title) {
-      res.status(400).json({
-        success: false,
-        message: 'Title is required',
-      });
-      return;
-    }
-
-    // Create task with userId from auth middleware
-    const task = await Task.create({
-      title,
-      description: description || '',
-      status: status || 'todo',
-      priority: priority || 'medium',
-      tags: tags || [],
-      deadline: deadline || null,
-      userId: req.user!.id,
-    });
+    const task = await taskService.createTask(req.user!.id, req.body);
 
     res.status(201).json({
       success: true,

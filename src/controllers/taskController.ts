@@ -2,6 +2,7 @@ import { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/authMiddleware';
 import Task from '../models/Task';
+import { TaskServiceError } from '../services/taskService';
 
 export const createTask = async (
   req: AuthRequest,
@@ -36,6 +37,10 @@ export const createTask = async (
       data: task,
     });
   } catch (error) {
+    if (error instanceof TaskServiceError) {
+      res.status(error.statusCode).json({ success: false, message: error.message });
+      return;
+    }
     if (error instanceof Error) {
       if (error.name === 'ValidationError') {
         res.status(400).json({
@@ -137,6 +142,10 @@ export const getTasks = async (
       data: tasks,
     });
   } catch (error) {
+    if (error instanceof TaskServiceError) {
+      res.status(error.statusCode).json({ success: false, message: error.message });
+      return;
+    }
     if (error instanceof Error) {
       res.status(500).json({
         success: false,
@@ -196,6 +205,10 @@ export const updateTask = async (
       data: updatedTask,
     });
   } catch (error) {
+    if (error instanceof TaskServiceError) {
+      res.status(error.statusCode).json({ success: false, message: error.message });
+      return;
+    }
     if (error instanceof Error) {
       if (error.name === 'ValidationError') {
         res.status(400).json({
@@ -252,6 +265,10 @@ export const deleteTask = async (
       message: 'Task deleted successfully',
     });
   } catch (error) {
+    if (error instanceof TaskServiceError) {
+      res.status(error.statusCode).json({ success: false, message: error.message });
+      return;
+    }
     if (error instanceof Error) {
       res.status(500).json({
         success: false,
@@ -293,6 +310,10 @@ export const getTaskStats = async (req: AuthRequest, res: Response): Promise<voi
       data: result
     });
   } catch (error) {
+    if (error instanceof TaskServiceError) {
+      res.status(error.statusCode).json({ success: false, message: error.message });
+      return;
+    }
     res.status(500).json({
       success: false,
       message: 'Server error',

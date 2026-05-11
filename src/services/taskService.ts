@@ -6,6 +6,7 @@ import {
   TaskFilterOptions,
   TaskSortOptions,
   TaskPaginationOptions,
+  TaskStatsResult,
 } from '../repositories/interfaces';
 import { buildScopedTaskFilter } from '../utils/taskQueryBuilder';
 import { mapPrismaTaskToResponseDTO } from '../dto/task/taskMapper';
@@ -65,13 +66,21 @@ export class TaskService {
 
   // ─── Private Helpers ──────────────────────────────────────────────────────
 
-  private async resolveProfileByMongoUserId(mongoUserId: string): Promise<Profile> {
-    const profile = await this.profileRepo.findByMongoId(mongoUserId);
-    if (!profile) {
-      throw new TaskServiceError('User profile not found in new system', 404);
-    }
-    return profile;
+  private async resolveProfileByMongoUserId(
+  mongoUserId: string
+): Promise<Profile> {
+  if (!mongoUserId) {
+    throw new TaskServiceError('Invalid user identity', 401);
   }
+
+  const profile = await this.profileRepo.findByMongoId(mongoUserId);
+
+  if (!profile) {
+    throw new TaskServiceError('User profile not found', 404);
+  }
+
+  return profile;
+}
 
   private validateTaskOwnership(task: Task, profile: Profile): void {
     if (task.profileId !== profile.id) {
@@ -193,6 +202,13 @@ export class TaskService {
     const updated = await this.taskRepo.update(task.id, data);
 
     return mapPrismaTaskToResponseDTO({ ...updated, profile });
+  }
+
+  // ─── Stats ────────────────────────────────────────────────────────────────
+
+  async getTaskStats(mongoUserId: string): Promise<TaskStatsResult> {
+    const profile = await this.resolveProfileByMongoUserId(mongoUserId);
+    return this.taskRepo.statsByStatus(profile.id);
   }
 
   // ─── Delete ───────────────────────────────────────────────────────────────

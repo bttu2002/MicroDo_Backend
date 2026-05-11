@@ -23,8 +23,7 @@ export const mapPrismaTaskToResponseDTO = (task: PrismaTask & { profile?: { mong
     priority: task.priority as 'low' | 'medium' | 'high',
     tags: task.tags,
     deadline: task.deadline,
-    // userId fallback chain: mongoId (if joined) → profileId (always present)
-    userId: task.profileId,
+    userId: task.profile?.mongoId ?? task.profileId,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     __v: 0,

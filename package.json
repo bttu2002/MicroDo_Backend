@@ -9,6 +9,8 @@
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "seed:admin": "ts-node src/scripts/seedAdmin.ts",
+    "migrate:tasks:dry": "ts-node src/scripts/migration/runTaskMigration.ts --dry-run",
+    "migrate:tasks": "ts-node src/scripts/migration/runTaskMigration.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"

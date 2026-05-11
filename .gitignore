@@ -6,3 +6,6 @@ dist
 .cursorrules
 .agentTask
 /src/generated
+Claude.md
+.claude
+*-backup.json

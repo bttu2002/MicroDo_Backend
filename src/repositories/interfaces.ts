@@ -76,6 +76,7 @@ export interface FindManyPaginatedOptions {
   filter?: TaskFilterOptions;
   sort?: TaskSortOptions;
   pagination?: TaskPaginationOptions;
+  scopeFilter?: import('@prisma/client').Prisma.TaskWhereInput; // RBAC filter from taskQueryBuilder
 }
 
 export interface PaginatedTasksResult {

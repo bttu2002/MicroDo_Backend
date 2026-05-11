@@ -9,6 +9,8 @@ import {
   TaskStatsResult,
 } from '../interfaces';
 import { isUUID } from '../../utils/compatibility';
+// Query builder provides RBAC-aware scope filters (personal / department / admin)
+import { buildPersonalTaskFilter } from '../../utils/taskQueryBuilder';
 
 export class PrismaTaskRepository implements ITaskRepository {
 
@@ -48,7 +50,7 @@ export class PrismaTaskRepository implements ITaskRepository {
    * - Pagination : page + limit with safe bounds
    */
   async findManyPaginated(options: FindManyPaginatedOptions): Promise<PaginatedTasksResult> {
-    const { profileId, filter = {}, sort = {}, pagination = {} } = options;
+    const { profileId, filter = {}, sort = {}, pagination = {}, scopeFilter } = options;
 
     // ── Pagination bounds ──
     const page  = Math.max(1, pagination.page  ?? 1);
@@ -56,28 +58,38 @@ export class PrismaTaskRepository implements ITaskRepository {
     const skip  = (page - 1) * limit;
 
     // ── Build WHERE clause ──
-    const where: Prisma.TaskWhereInput = { profileId };
+    // scopeFilter: RBAC-aware filter from taskQueryBuilder (personal / dept / admin)
+    // If not provided, defaults to personal filter (tasks owned by this profile)
+    const baseScope: Prisma.TaskWhereInput = scopeFilter ?? { profileId };
+
+    // Build additional filters on top of scope
+    const additionalFilters: Prisma.TaskWhereInput = {};
 
     if (filter.status) {
-      where.status = filter.status as Prisma.EnumTaskStatusFilter;
+      additionalFilters.status = filter.status as Prisma.EnumTaskStatusFilter;
     }
 
     if (filter.priority) {
-      where.priority = filter.priority as Prisma.EnumTaskPriorityFilter;
+      additionalFilters.priority = filter.priority as Prisma.EnumTaskPriorityFilter;
     }
 
     if (filter.tag) {
       // Prisma array contains: checks if tags array includes the value
-      where.tags = { has: filter.tag };
+      additionalFilters.tags = { has: filter.tag };
     }
 
     if (filter.search) {
       // Case-insensitive partial match — equivalent to Mongo $regex with 'i'
-      where.title = {
+      additionalFilters.title = {
         contains: filter.search,
         mode: 'insensitive',
       };
     }
+
+    // Merge RBAC scope + user filters using Prisma AND
+    const where: Prisma.TaskWhereInput = {
+      AND: [baseScope, additionalFilters],
+    };
 
     // ── Build ORDER BY clause ──
     const validSortFields = ['deadline', 'createdAt', 'priority', 'status', 'title'] as const;

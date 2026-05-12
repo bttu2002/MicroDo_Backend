@@ -66,21 +66,19 @@ export class TaskService {
 
   // ─── Private Helpers ──────────────────────────────────────────────────────
 
-  private async resolveProfileByMongoUserId(
-  mongoUserId: string
-): Promise<Profile> {
-  if (!mongoUserId) {
-    throw new TaskServiceError('Invalid user identity', 401);
+  private async resolveProfile(profileId: string): Promise<Profile> {
+    if (!profileId) {
+      throw new TaskServiceError('Invalid user identity', 401);
+    }
+
+    const profile = await this.profileRepo.findById(profileId);
+
+    if (!profile) {
+      throw new TaskServiceError('User profile not found', 404);
+    }
+
+    return profile;
   }
-
-  const profile = await this.profileRepo.findByMongoId(mongoUserId);
-
-  if (!profile) {
-    throw new TaskServiceError('User profile not found', 404);
-  }
-
-  return profile;
-}
 
   private validateTaskOwnership(task: Task, profile: Profile): void {
     if (task.profileId !== profile.id) {
@@ -90,12 +88,12 @@ export class TaskService {
 
   // ─── Create ───────────────────────────────────────────────────────────────
 
-  async createTask(mongoUserId: string, input: CreateTaskInput): Promise<TaskResponseDTO> {
+  async createTask(profileId: string, input: CreateTaskInput): Promise<TaskResponseDTO> {
     if (!input.title?.trim()) {
       throw new TaskServiceError('Title is required', 400);
     }
 
-    const profile = await this.resolveProfileByMongoUserId(mongoUserId);
+    const profile = await this.resolveProfile(profileId);
 
     const task = await this.taskRepo.create({
       title:       input.title.trim(),
@@ -112,9 +110,9 @@ export class TaskService {
 
   // ─── Read (list) ──────────────────────────────────────────────────────────
 
-  async getTasks(mongoUserId: string, query: GetTasksInput): Promise<PaginatedTasksResponseDTO> {
-    const profile     = await this.resolveProfileByMongoUserId(mongoUserId);
-    const scopeFilter = buildScopedTaskFilter(mongoUserId, profile.departmentId, profile.role);
+  async getTasks(profileId: string, query: GetTasksInput): Promise<PaginatedTasksResponseDTO> {
+    const profile     = await this.resolveProfile(profileId);
+    const scopeFilter = buildScopedTaskFilter(profileId, profile.departmentId, profile.role);
 
     if (query.status && !['todo', 'doing', 'done'].includes(query.status)) {
       throw new TaskServiceError('Invalid status. Must be: todo, doing, or done', 400);
@@ -164,13 +162,13 @@ export class TaskService {
 
   // ─── Read (single) ────────────────────────────────────────────────────────
 
-  async getTaskById(mongoUserId: string, taskId: string): Promise<TaskResponseDTO> {
+  async getTaskById(profileId: string, taskId: string): Promise<TaskResponseDTO> {
     const task = await this.taskRepo.findByIdOrMongoId(taskId);
     if (!task) {
       throw new TaskServiceError('Task not found', 404);
     }
 
-    const profile = await this.resolveProfileByMongoUserId(mongoUserId);
+    const profile = await this.resolveProfile(profileId);
     this.validateTaskOwnership(task, profile);
 
     return mapPrismaTaskToResponseDTO({ ...task, profile });
@@ -179,7 +177,7 @@ export class TaskService {
   // ─── Update ───────────────────────────────────────────────────────────────
 
   async updateTask(
-    mongoUserId: string,
+    profileId: string,
     taskId: string,
     input: UpdateTaskInput
   ): Promise<TaskResponseDTO> {
@@ -188,7 +186,7 @@ export class TaskService {
       throw new TaskServiceError('Task not found', 404);
     }
 
-    const profile = await this.resolveProfileByMongoUserId(mongoUserId);
+    const profile = await this.resolveProfile(profileId);
     this.validateTaskOwnership(task, profile);
 
     const data: UpdateTaskData = {};
@@ -206,20 +204,20 @@ export class TaskService {
 
   // ─── Stats ────────────────────────────────────────────────────────────────
 
-  async getTaskStats(mongoUserId: string): Promise<TaskStatsResult> {
-    const profile = await this.resolveProfileByMongoUserId(mongoUserId);
+  async getTaskStats(profileId: string): Promise<TaskStatsResult> {
+    const profile = await this.resolveProfile(profileId);
     return this.taskRepo.statsByStatus(profile.id);
   }
 
   // ─── Delete ───────────────────────────────────────────────────────────────
 
-  async deleteTask(mongoUserId: string, taskId: string): Promise<void> {
+  async deleteTask(profileId: string, taskId: string): Promise<void> {
     const task = await this.taskRepo.findByIdOrMongoId(taskId);
     if (!task) {
       throw new TaskServiceError('Task not found', 404);
     }
 
-    const profile = await this.resolveProfileByMongoUserId(mongoUserId);
+    const profile = await this.resolveProfile(profileId);
     this.validateTaskOwnership(task, profile);
 
     await this.taskRepo.delete(task.id);

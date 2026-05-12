@@ -5,12 +5,8 @@ import { Prisma } from '@prisma/client';
  * This ensures consistency across the application when fetching tasks.
  */
 
-export const buildPersonalTaskFilter = (mongoUserId: string): Prisma.TaskWhereInput => {
-  return {
-    profile: {
-      mongoId: mongoUserId,
-    },
-  };
+export const buildPersonalTaskFilter = (profileId: string): Prisma.TaskWhereInput => {
+  return { profileId };
 };
 
 export const buildDepartmentTaskFilter = (departmentId: string): Prisma.TaskWhereInput => {
@@ -26,7 +22,7 @@ export const buildDepartmentTaskFilter = (departmentId: string): Prisma.TaskWher
  * - USER/MEMBER: Gets only their personal tasks
  */
 export const buildScopedTaskFilter = (
-  mongoUserId: string,
+  profileId: string,
   departmentId?: string | null,
   role?: string | null
 ): Prisma.TaskWhereInput => {
@@ -41,7 +37,7 @@ export const buildScopedTaskFilter = (
   }
 
   // 3. Regular users (or unassigned users) see only their own tasks
-  return buildPersonalTaskFilter(mongoUserId);
+  return buildPersonalTaskFilter(profileId);
 };
 
 export const buildAdminTaskFilter = (

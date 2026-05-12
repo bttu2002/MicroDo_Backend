@@ -14,7 +14,7 @@ export const createTask = async (
   res: Response
 ): Promise<void> => {
   try {
-    const task = await taskService.createTask(req.user!.id, req.body);
+    const task = await taskService.createTask(req.user!.prismaId, req.body);
 
     res.status(201).json({
       success: true,
@@ -70,7 +70,7 @@ export const getTasks = async (
     if (sortBy)   query.sortBy   = sortBy;
     if (order)    query.order    = order;
 
-    const result = await taskService.getTasks(req.user!.id, query);
+    const result = await taskService.getTasks(req.user!.prismaId, query);
 
     res.status(200).json(result);
   } catch (error) {
@@ -99,7 +99,7 @@ export const updateTask = async (
 ): Promise<void> => {
   try {
     const updatedTask = await taskService.updateTask(
-      req.user!.id,
+      req.user!.prismaId,
       req.params.id as string,
       req.body
     );
@@ -141,7 +141,7 @@ export const deleteTask = async (
   res: Response
 ): Promise<void> => {
   try {
-    await taskService.deleteTask(req.user!.id, req.params.id as string);
+    await taskService.deleteTask(req.user!.prismaId, req.params.id as string);
 
     res.status(200).json({
       success: true,
@@ -169,7 +169,7 @@ export const deleteTask = async (
 
 export const getTaskStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const stats = await taskService.getTaskStats(req.user!.id);
+    const stats = await taskService.getTaskStats(req.user!.prismaId);
 
     res.status(200).json({
       success: true,

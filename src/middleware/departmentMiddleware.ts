@@ -22,7 +22,7 @@ export const attachDepartmentContext = async (
 
   try {
     const profile = await prisma.profile.findUnique({
-      where: { mongoId: req.user.id },
+      where: { id: req.user.prismaId },
       select: { departmentId: true, role: true },
     });
 

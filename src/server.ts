@@ -1,7 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import connectDB from './config/database';
 import authRoutes from './routes/authRoutes';
 import taskRoutes from './routes/taskRoutes';
 import userRoutes from './routes/userRoutes';
@@ -11,9 +10,6 @@ import { protect, AuthRequest } from './middleware/authMiddleware';
 
 // Load environment variables
 dotenv.config();
-
-// Connect to MongoDB
-connectDB();
 
 const app = express();
 const port = process.env.PORT || 3000;

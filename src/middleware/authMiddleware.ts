@@ -42,11 +42,10 @@ export const protect = async (
     // Verify token — JWT payload still contains MongoId, existing tokens continue to work
     const decoded = verifyToken(token);
 
-    // Phase 4.2: look up Prisma Profile by mongoId instead of MongoDB User.findById()
-    // Role/status source of truth is now Prisma Profile
+    // Phase 4.3: JWT now carries Prisma UUID; look up by primary key id
     const profile = await prisma.profile.findUnique({
-      where:  { mongoId: decoded.id },
-      select: { id: true, email: true, role: true, status: true },
+      where:  { id: decoded.id },
+      select: { id: true, email: true, role: true, status: true, mongoId: true },
     });
 
     if (!profile) {
@@ -66,8 +65,8 @@ export const protect = async (
     }
 
     req.user = {
-      id:       decoded.id,   // MongoId — kept for all existing downstream consumers
-      prismaId: profile.id,   // Prisma UUID — available for Phase 4.4+ consumers
+      id:       profile.mongoId ?? profile.id,  // MongoId for backward compat; UUID fallback
+      prismaId: profile.id,
       email:    profile.email,
       role:     profile.role,
     };

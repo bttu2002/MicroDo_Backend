@@ -1,16 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
+import { Role } from '@prisma/client';
 import { verifyToken } from '../utils/jwt';
-import User from '../models/User';
+import prisma from '../config/prisma';
 
 // Extend Express Request to include user
 export interface AuthRequest extends Request {
   user?: {
-    id: string; // Mongo ID
+    id: string;        // MongoId — JWT identity, preserved for backward compat during transition
+    prismaId: string;  // Prisma Profile UUID — canonical identity for Phase 4.4+
     email: string;
-    role: string;
-    // --- Added for Phase 2 Department Scoping ---
+    role: Role;        // source of truth is now Prisma Profile
+    // --- Department context, populated by attachDepartmentContext middleware ---
     departmentId?: string | null;
-    departmentRole?: string | null; // e.g., 'DEPT_MANAGER', 'DEPT_MEMBER', 'USER', 'ADMIN'
+    departmentRole?: string | null;
   };
 }
 
@@ -37,20 +39,25 @@ export const protect = async (
       return;
     }
 
-    // Verify token
+    // Verify token — JWT payload still contains MongoId, existing tokens continue to work
     const decoded = verifyToken(token);
 
-    // Find user by id from token
-    const user = await User.findById(decoded.id).select('-password');
-    if (!user) {
+    // Phase 4.2: look up Prisma Profile by mongoId instead of MongoDB User.findById()
+    // Role/status source of truth is now Prisma Profile
+    const profile = await prisma.profile.findUnique({
+      where:  { mongoId: decoded.id },
+      select: { id: true, email: true, role: true, status: true },
+    });
+
+    if (!profile) {
       res.status(401).json({
         success: false,
-        message: 'Not authorized, user not found',
+        message: 'Not authorized, user profile not found',
       });
       return;
     }
 
-    if (user.status === 'BANNED') {
+    if (profile.status === 'BANNED') {
       res.status(403).json({
         success: false,
         message: 'Your account has been banned',
@@ -58,11 +65,11 @@ export const protect = async (
       return;
     }
 
-    // Attach user to request
     req.user = {
-      id: user._id.toString(),
-      email: user.email,
-      role: user.role || 'USER',
+      id:       decoded.id,   // MongoId — kept for all existing downstream consumers
+      prismaId: profile.id,   // Prisma UUID — available for Phase 4.4+ consumers
+      email:    profile.email,
+      role:     profile.role,
     };
 
     next();

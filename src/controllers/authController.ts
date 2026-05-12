@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
-import User from '../models/User';
 import prisma from '../config/prisma';
 import { generateToken } from '../utils/jwt';
 import sendEmail from '../utils/email';
@@ -16,17 +15,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Prisma is canonical — check uniqueness here
     const existing = await prisma.profile.findUnique({ where: { email } });
     if (existing) {
       res.status(409).json({ success: false, message: 'User already exists with this email' });
       return;
     }
 
-    // Hash once; Prisma receives the hash, MongoDB receives plaintext (pre-save hook hashes)
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // 1. Prisma create FIRST (canonical)
     const profile = await prisma.profile.create({
       data: {
         email,
@@ -35,20 +31,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         status: 'ACTIVE',
       },
     });
-
-    // 2. MongoDB mirror SECOND (best-effort legacy)
-    try {
-      const mongoUser = await User.create({ email, password }); // plaintext — pre-save hook hashes
-      await prisma.profile.update({
-        where: { id: profile.id },
-        data: { mongoId: mongoUser._id.toString() },
-      });
-    } catch (mirrorError) {
-      console.warn(
-        '[register] MongoDB mirror write failed:',
-        mirrorError instanceof Error ? mirrorError.message : mirrorError
-      );
-    }
 
     res.status(201).json({
       success: true,
@@ -83,7 +65,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Prisma is canonical auth source
     const profile = await prisma.profile.findUnique({
       where: { email },
       select: { id: true, email: true, passwordHash: true, role: true, status: true, mongoId: true },
@@ -105,7 +86,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // JWT now carries Prisma UUID
     const token = generateToken(profile.id);
 
     res.status(200).json({
@@ -146,29 +126,12 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     const resetToken = crypto.randomBytes(32).toString('hex');
     const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    // ONE Date instance reused for both Prisma and Mongo mirror
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    // Prisma write (canonical)
     await prisma.profile.update({
       where: { id: profile.id },
       data: { passwordResetToken: hashedToken, passwordResetExpires: expiresAt },
     });
-
-    // MongoDB mirror (best-effort)
-    if (profile.mongoId) {
-      try {
-        await User.findByIdAndUpdate(profile.mongoId, {
-          passwordResetToken: hashedToken,
-          passwordResetExpires: expiresAt,
-        });
-      } catch (mirrorError) {
-        console.warn(
-          '[forgotPassword] MongoDB mirror write failed:',
-          mirrorError instanceof Error ? mirrorError.message : mirrorError
-        );
-      }
-    }
 
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
     const message =
@@ -197,14 +160,6 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
           cleanupError instanceof Error ? cleanupError.message : cleanupError
         );
       }
-      // Best-effort Mongo cleanup
-      if (profile.mongoId) {
-        try {
-          await User.findByIdAndUpdate(profile.mongoId, {
-            $unset: { passwordResetToken: '', passwordResetExpires: '' },
-          });
-        } catch { /* ignore */ }
-      }
 
       res.status(500).json({
         success: false,
@@ -231,7 +186,6 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    // Prisma token validation (canonical)
     const profile = await prisma.profile.findFirst({
       where: {
         passwordResetToken: hashedToken,
@@ -244,10 +198,8 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Hash once; Prisma receives hash, MongoDB receives plaintext (pre-save hook hashes)
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Prisma write (canonical)
     await prisma.profile.update({
       where: { id: profile.id },
       data: {
@@ -257,25 +209,6 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       },
     });
 
-    // MongoDB mirror (best-effort) — pass plaintext, never the hash
-    if (profile.mongoId) {
-      try {
-        const mongoUser = await User.findById(profile.mongoId);
-        if (mongoUser) {
-          mongoUser.password = password;
-          mongoUser.passwordResetToken = undefined;
-          mongoUser.passwordResetExpires = undefined;
-          await mongoUser.save();
-        }
-      } catch (mirrorError) {
-        console.warn(
-          '[resetPassword] MongoDB mirror write failed:',
-          mirrorError instanceof Error ? mirrorError.message : mirrorError
-        );
-      }
-    }
-
-    // JWT now carries Prisma UUID
     const jwtToken = generateToken(profile.id);
 
     res.status(200).json({
@@ -311,7 +244,6 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // Prisma lookup (canonical)
     const profile = await prisma.profile.findUnique({
       where: { id: req.user!.prismaId },
     });
@@ -329,27 +261,10 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    // Prisma write (canonical)
     await prisma.profile.update({
       where: { id: profile.id },
       data: { passwordHash },
     });
-
-    // MongoDB mirror (best-effort) — only if mongoId exists, pass plaintext
-    if (profile.mongoId) {
-      try {
-        const mongoUser = await User.findById(profile.mongoId);
-        if (mongoUser) {
-          mongoUser.password = newPassword; // plaintext — pre-save hook hashes
-          await mongoUser.save();
-        }
-      } catch (mirrorError) {
-        console.warn(
-          '[changePassword] MongoDB mirror write failed:',
-          mirrorError instanceof Error ? mirrorError.message : mirrorError
-        );
-      }
-    }
 
     res.status(200).json({ success: true, message: 'Password successfully changed' });
   } catch (error) {

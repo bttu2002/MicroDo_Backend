@@ -6,8 +6,6 @@ import {
   UpdateDepartmentData,
   DepartmentWithMembers,
 } from '../repositories/interfaces';
-import User from '../models/User'; // ← MongoDB User model (source of truth during Phase 2)
-import prisma from '../config/prisma'; // ← Direct Prisma client for mongoId bridge linking
 
 // ─── Repository Instances ────────────────────────────────────
 
@@ -143,135 +141,47 @@ export const deleteDepartment = async (
 };
 
 /**
- * Assign a user to a department using the mongoId bridge pattern.
- *
- * Safe UPSERT behavior (approved by user):
- * 1. Prioritize mongoId lookup → find existing Prisma Profile by mongoId
- * 2. Fallback to email lookup → find existing Prisma Profile by email
- * 3. If no Profile found → create new Profile from MongoDB User data
- * 4. Update Profile's departmentId
- *
- * MongoDB User remains source of truth during Phase 2.
+ * Assign a user to a department.
+ * Accepts Prisma Profile UUID as canonical identifier.
  */
 export const assignUserToDepartment = async (
-  mongoUserId: string,
+  prismaId: string,
   departmentId: string
 ): Promise<Profile> => {
-  // 1. Validate department exists
   const department = await departmentRepo.findById(departmentId);
   if (!department) {
     throw new ServiceError('Department not found', 404);
   }
 
-  // 2. Find MongoDB User (source of truth)
-  const mongoUser = await User.findById(mongoUserId).select(
-    'email name avatar role status'
-  );
-  if (!mongoUser) {
-    throw new ServiceError('User not found in database', 404);
+  const profile = await profileRepo.findById(prismaId);
+  if (!profile) {
+    throw new ServiceError('User not found', 404);
   }
 
-  // 3. Safe UPSERT: find or create Prisma Profile
-  let profile = await findOrCreateProfile(mongoUserId, mongoUser);
-
-  // 4. Check if already in this department
   if (profile.departmentId === departmentId) {
-    throw new ServiceError(
-      'User is already assigned to this department',
-      409
-    );
+    throw new ServiceError('User is already assigned to this department', 409);
   }
 
-  // 5. Update department assignment
-  profile = await profileRepo.update(profile.id, { departmentId });
-
-  return profile;
+  return profileRepo.update(profile.id, { departmentId });
 };
 
 /**
  * Remove a user from their department.
- * Uses mongoId bridge to find the Prisma Profile.
+ * Accepts Prisma Profile UUID as canonical identifier.
  */
 export const removeUserFromDepartment = async (
-  mongoUserId: string
+  prismaId: string
 ): Promise<Profile> => {
-  // Find Prisma Profile by mongoId
-  const profile = await profileRepo.findByMongoId(mongoUserId);
+  const profile = await profileRepo.findById(prismaId);
   if (!profile) {
-    throw new ServiceError(
-      'User profile not found. User may not have been assigned to any department yet.',
-      404
-    );
+    throw new ServiceError('User profile not found', 404);
   }
 
   if (!profile.departmentId) {
-    throw new ServiceError(
-      'User is not assigned to any department',
-      400
-    );
+    throw new ServiceError('User is not assigned to any department', 400);
   }
 
   return profileRepo.update(profile.id, { departmentId: null });
-};
-
-// ─── Internal Helpers ────────────────────────────────────────
-
-/**
- * MongoId Bridge — Safe UPSERT pattern
- *
- * Finds existing Prisma Profile or creates one from MongoDB User data.
- * Lookup priority: mongoId → email → create new
- */
-const findOrCreateProfile = async (
-  mongoUserId: string,
-  mongoUser: any
-): Promise<Profile> => {
-  // Priority 1: Find by mongoId
-  let profile = await profileRepo.findByMongoId(mongoUserId);
-  if (profile) {
-    return profile;
-  }
-
-  // Priority 2: Find by email (handles case where Profile exists but mongoId wasn't set)
-  profile = await profileRepo.findByEmail(mongoUser.email);
-  if (profile) {
-    // Link the mongoId to existing profile for future lookups
-    if (!profile.mongoId) {
-      profile = await prisma.profile.update({
-        where: { id: profile.id },
-        data: { mongoId: mongoUserId },
-      });
-    }
-    return profile;
-  }
-
-  // Priority 3: Create new Profile from MongoDB User data
-  profile = await profileRepo.create({
-    email: mongoUser.email,
-    name: mongoUser.name || undefined,
-    avatar: mongoUser.avatar || undefined,
-    passwordHash: '@@MONGO_BRIDGE@@', // Placeholder — auth still uses MongoDB
-    role: mapMongoRole(mongoUser.role),
-    mongoId: mongoUserId,
-  });
-
-  return profile;
-};
-
-/**
- * Maps MongoDB role values to Prisma Role enum.
- * During Phase 2, only USER and ADMIN exist in MongoDB.
- */
-const mapMongoRole = (
-  mongoRole: string
-): 'USER' | 'ADMIN' | 'DEPT_MANAGER' | 'DEPT_MEMBER' => {
-  switch (mongoRole) {
-    case 'ADMIN':
-      return 'ADMIN';
-    case 'USER':
-    default:
-      return 'USER';
-  }
 };
 
 // ─── Service Error Class ─────────────────────────────────────

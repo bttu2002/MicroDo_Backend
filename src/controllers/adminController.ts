@@ -1,13 +1,14 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
-import User from '../models/User';
 import { prisma } from '../config/prisma';
 
 export const getDashboard = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const totalUsers = await User.countDocuments();
-    const bannedUsers = await User.countDocuments({ status: 'BANNED' });
-    const totalTasks = await prisma.task.count();
+    const [totalUsers, bannedUsers, totalTasks] = await Promise.all([
+      prisma.profile.count(),
+      prisma.profile.count({ where: { status: 'BANNED' } }),
+      prisma.task.count(),
+    ]);
 
     res.status(200).json({
       success: true,
@@ -28,21 +29,42 @@ export const getDashboard = async (req: AuthRequest, res: Response): Promise<voi
 
 export const getUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const page  = Math.max(1, parseInt(req.query.page  as string) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
-    const skip = (page - 1) * limit;
+    const skip  = (page - 1) * limit;
 
-    const filter: Record<string, unknown> = {};
-    if (req.query.search) {
-      filter.email = { $regex: req.query.search as string, $options: 'i' };
-    }
+    const where = req.query.search
+      ? { email: { contains: req.query.search as string, mode: 'insensitive' as const } }
+      : {};
 
-    const totalUsers = await User.countDocuments(filter);
-    const users = await User.find(filter)
-      .select('id email role status createdAt')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    const [totalUsers, profiles] = await Promise.all([
+      prisma.profile.count({ where }),
+      prisma.profile.findMany({
+        where,
+        select: {
+          id:        true,
+          mongoId:   true,
+          email:     true,
+          name:      true,
+          role:      true,
+          status:    true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    const users = profiles.map(p => ({
+      _id:       p.mongoId,
+      id:        p.id,
+      email:     p.email,
+      name:      p.name,
+      role:      p.role,
+      status:    p.status,
+      createdAt: p.createdAt,
+    }));
 
     res.status(200).json({
       success: true,
@@ -50,10 +72,10 @@ export const getUsers = async (req: AuthRequest, res: Response): Promise<void> =
         users,
         pagination: {
           currentPage: page,
-          totalPages: Math.ceil(totalUsers / limit),
+          totalPages:  Math.ceil(totalUsers / limit),
           totalUsers,
           limit,
-        }
+        },
       },
     });
   } catch (error) {
@@ -67,36 +89,39 @@ export const getUsers = async (req: AuthRequest, res: Response): Promise<void> =
 
 export const banUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userIdToBan = req.params.id;
+    const userIdToBan = req.params.id as string;
 
-    if (userIdToBan === req.user!.id) {
-       res.status(400).json({
+    if (userIdToBan === req.user!.prismaId) {
+      res.status(400).json({
         success: false,
         message: 'Admin cannot ban themselves',
       });
       return;
     }
 
-    const user = await User.findById(userIdToBan);
-    if (!user) {
-       res.status(404).json({
+    const profile = await prisma.profile.findUnique({ where: { id: userIdToBan } });
+    if (!profile) {
+      res.status(404).json({
         success: false,
         message: 'User not found',
       });
       return;
     }
 
-    user.status = 'BANNED';
-    await user.save({ validateBeforeSave: false });
+    await prisma.profile.update({
+      where: { id: profile.id },
+      data: { status: 'BANNED' },
+    });
 
     res.status(200).json({
       success: true,
       message: 'User has been banned',
       data: {
-        id: user._id,
-        email: user.email,
-        status: user.status
-      }
+        _id: profile.mongoId,
+        id: profile.id,
+        email: profile.email,
+        status: 'BANNED',
+      },
     });
   } catch (error) {
     res.status(500).json({
@@ -109,28 +134,31 @@ export const banUser = async (req: AuthRequest, res: Response): Promise<void> =>
 
 export const unbanUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userIdToUnban = req.params.id;
+    const userIdToUnban = req.params.id as string;
 
-    const user = await User.findById(userIdToUnban);
-    if (!user) {
-       res.status(404).json({
+    const profile = await prisma.profile.findUnique({ where: { id: userIdToUnban } });
+    if (!profile) {
+      res.status(404).json({
         success: false,
         message: 'User not found',
       });
       return;
     }
 
-    user.status = 'ACTIVE';
-    await user.save({ validateBeforeSave: false });
+    await prisma.profile.update({
+      where: { id: profile.id },
+      data: { status: 'ACTIVE' },
+    });
 
     res.status(200).json({
       success: true,
       message: 'User has been unbanned',
       data: {
-        id: user._id,
-        email: user.email,
-        status: user.status
-      }
+        _id: profile.mongoId,
+        id: profile.id,
+        email: profile.email,
+        status: 'ACTIVE',
+      },
     });
   } catch (error) {
     res.status(500).json({

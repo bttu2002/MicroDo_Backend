@@ -1,11 +1,9 @@
-import mongoose from 'mongoose';
-
 /**
  * Validates if a given string is a valid 24-character hexadecimal MongoDB ObjectId.
  */
 export const isMongoObjectId = (id: string): boolean => {
   if (!id) return false;
-  return mongoose.Types.ObjectId.isValid(id) && (new mongoose.Types.ObjectId(id)).toString() === id;
+  return /^[a-f\d]{24}$/i.test(id);
 };
 
 /**

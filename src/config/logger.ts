@@ -1,6 +1,7 @@
 import pino from 'pino';
+import { env } from './env';
 
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = env.NODE_ENV !== 'production';
 
 // Cast to Logger<string> so pino-http's `logger` option types check correctly.
 // Safe at runtime: Logger<never> and Logger<string> have identical behaviour

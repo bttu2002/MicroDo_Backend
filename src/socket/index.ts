@@ -3,6 +3,7 @@ import { Server as SocketServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma';
 import logger from '../config/logger';
+import { env } from '../config/env';
 
 export interface SocketUser {
   prismaId: string;
@@ -49,7 +50,7 @@ let io: SocketServer | null = null;
 export function initSocket(httpServer: HttpServer): SocketServer {
   io = new SocketServer(httpServer, {
     cors: {
-      origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+      origin: env.FRONTEND_URL,
       credentials: true,
     },
   });
@@ -66,13 +67,7 @@ export function initSocket(httpServer: HttpServer): SocketServer {
         return next(new Error('Authentication required'));
       }
 
-      const secret = process.env.JWT_SECRET;
-      if (!secret) {
-        logger.error({ reason: 'missing_jwt_secret' }, 'Socket auth failed — server misconfiguration');
-        return next(new Error('Server configuration error'));
-      }
-
-      const decoded = jwt.verify(token, secret) as { id?: string; userId?: string };
+      const decoded = jwt.verify(token, env.JWT_SECRET) as { id?: string; userId?: string };
       const userId = decoded.id ?? decoded.userId;
       if (!userId) {
         logger.warn({ ip: socket.handshake.address, reason: 'invalid_payload' }, 'Socket auth rejected');

@@ -1,10 +1,10 @@
+import { env } from './config/env';
 import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import dotenv from 'dotenv';
 import pinoHttp from 'pino-http';
 import logger from './config/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -19,12 +19,10 @@ import invitationRoutes from './routes/invitationRoutes';
 import commentRoutes from './routes/commentRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import { protect, AuthRequest } from './middleware/authMiddleware';
-import { initSocket } from './socket/index';
-
-dotenv.config();
+import { initSocket, getIO } from './socket/index';
+import prisma from './config/prisma';
 
 const app = express();
-const port = process.env.PORT || 3000;
 
 // ─── Trust proxy (must be before rate limiters) ───────────────
 // Set to 1 when running behind a single reverse proxy (nginx, etc.)
@@ -41,15 +39,10 @@ app.use(helmet({
 }));
 
 // ─── 3. CORS ──────────────────────────────────────────────────
-const allowedOrigins = [
-  'http://localhost:5173',
-  process.env.FRONTEND_URL,
-].filter(Boolean) as string[];
-
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+    if (env.FRONTEND_URL.includes(origin) || env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -136,8 +129,50 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => 
 const httpServer = createServer(app);
 initSocket(httpServer);
 
-httpServer.listen(port, () => {
-  logger.info({ port }, 'Server started');
+// ─── Graceful shutdown ────────────────────────────────────────
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal: string, exitCode: number): Promise<void> {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  logger.info({ signal }, 'Shutdown signal received');
+
+  const forceExitTimeout = setTimeout(() => {
+    logger.error({ signal }, 'Graceful shutdown timed out — forcing exit');
+    process.exit(1);
+  }, 10_000);
+  forceExitTimeout.unref();
+
+  await new Promise<void>(resolve => httpServer.close(() => resolve()));
+
+  try { getIO().close(); } catch { /* not initialized */ }
+
+  try {
+    await prisma.$disconnect();
+  } catch (err) {
+    logger.error({ err }, 'Prisma disconnect error during shutdown');
+  }
+
+  clearTimeout(forceExitTimeout);
+  logger.info('Graceful shutdown complete');
+  process.exit(exitCode);
+}
+
+process.on('SIGINT',  () => void gracefulShutdown('SIGINT',  0));
+process.on('SIGTERM', () => void gracefulShutdown('SIGTERM', 0));
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, 'Uncaught exception');
+  void gracefulShutdown('uncaughtException', 1);
+});
+process.on('unhandledRejection', (reason) => {
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  logger.error({ err: error }, 'Unhandled rejection');
+  void gracefulShutdown('unhandledRejection', 1);
+});
+
+httpServer.listen(env.PORT, () => {
+  logger.info({ port: env.PORT }, 'Server started');
 });
 
 export default app;

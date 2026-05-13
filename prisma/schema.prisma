@@ -8,6 +8,8 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ─── Global Enums ────────────────────────────────────────────
+
 enum Role {
   USER
   ADMIN
@@ -32,36 +34,119 @@ enum TaskPriority {
   high
 }
 
+// ─── Department/RBAC Enums ───────────────────────────────────
+
+enum DepartmentMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  REMOVED
+}
+
+// ─── Models ──────────────────────────────────────────────────
+
 model Profile {
-  id                   String      @id @default(uuid())
-  email                String      @unique
+  id                   String    @id @default(uuid())
+  email                String    @unique
   name                 String?
   avatar               String?
   passwordHash         String
-  role                 Role        @default(USER)
-  status               UserStatus  @default(ACTIVE)
+  role                 Role      @default(USER)
+  status               UserStatus @default(ACTIVE)
   passwordResetToken   String?
   passwordResetExpires DateTime?
-  mongoId              String?     @unique    // ← liên kết với MongoDB _id
-  departmentId         String?
-  department           Department? @relation(fields: [departmentId], references: [id])
+  mongoId              String?   @unique
   tasks                Task[]
-  createdAt            DateTime    @default(now())
-  updatedAt            DateTime    @updatedAt
+  memberships          DepartmentMember[]    @relation("MemberProfile")
+  invitedMemberships   DepartmentMember[]    @relation("InviterProfile")
+  sentInvitations      DepartmentInvitation[] @relation("InviterInvitation")
+  activityLogs         ActivityLog[]
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@map("profiles")
 }
 
 model Department {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  description String?
-  members     Profile[]
-  tasks       Task[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  name         String    @unique
+  description  String?
+  memberships  DepartmentMember[]
+  invitations  DepartmentInvitation[]
+  tasks        Task[]
+  activityLogs ActivityLog[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@map("departments")
+}
+
+model DepartmentMember {
+  id           String               @id @default(uuid())
+  userId       String
+  departmentId String
+  role         DepartmentMemberRole @default(MEMBER)
+  status       MembershipStatus     @default(ACTIVE)
+  joinedAt     DateTime             @default(now())
+  invitedBy    String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  member       Profile              @relation("MemberProfile", fields: [userId], references: [id], onDelete: Cascade)
+  inviter      Profile?             @relation("InviterProfile", fields: [invitedBy], references: [id], onDelete: SetNull)
+  department   Department           @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, departmentId])
+  @@index([departmentId])
+  @@index([userId])
+  @@index([status])
+  @@map("department_members")
+}
+
+model DepartmentInvitation {
+  id           String               @id @default(uuid())
+  departmentId String
+  email        String
+  role         DepartmentMemberRole @default(MEMBER)
+  token        String               @unique
+  invitedBy    String
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime             @default(now())
+
+  department   Department           @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  inviter      Profile              @relation("InviterInvitation", fields: [invitedBy], references: [id])
+
+  @@index([departmentId, email])
+  @@index([token])
+  @@index([email])
+  @@map("department_invitations")
+}
+
+model ActivityLog {
+  id           String    @id @default(uuid())
+  actorUserId  String?
+  departmentId String?
+  entityType   String
+  entityId     String?
+  action       String
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+
+  actor        Profile?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([departmentId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
 }
 
 model Task {
@@ -72,7 +157,7 @@ model Task {
   priority     TaskPriority @default(medium)
   tags         String[]
   deadline     DateTime?
-  mongoId      String?      @unique    // ← liên kết với MongoDB _id
+  mongoId      String?      @unique
   profileId    String
   profile      Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
   departmentId String?
@@ -83,9 +168,9 @@ model Task {
   @@index([profileId])
   @@index([departmentId])
   @@index([status])
-  @@index([title]) // For text search queries
-  @@index([createdAt]) // For default sorting
-  @@index([profileId, status]) // Composite index for user dashboard filtering
-  @@index([departmentId, status]) // Composite index for department board filtering
+  @@index([title])
+  @@index([createdAt])
+  @@index([profileId, status])
+  @@index([departmentId, status])
   @@map("tasks")
 }

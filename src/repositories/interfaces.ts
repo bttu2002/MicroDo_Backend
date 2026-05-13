@@ -73,10 +73,25 @@ export interface DepartmentWithMembers {
   createdAt: Date;
   updatedAt: Date;
   memberships: MemberWithProfile[];
+  hasMoreMembers: boolean;
   _count?: {
     memberships: number;
     tasks: number;
   };
+}
+
+export interface PaginatedDepartmentsResult {
+  departments: DepartmentWithMembers[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface PaginatedMembersResult {
+  members: MemberWithProfile[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 // ─── Invitation DTOs ─────────────────────────────────────────
@@ -105,6 +120,13 @@ export interface InvitationWithInviter {
     name: string | null;
     email: string;
   };
+}
+
+export interface PaginatedInvitationsResult {
+  invitations: InvitationWithInviter[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 // ─── Comment DTOs ─────────────────────────────────────────────
@@ -140,9 +162,16 @@ export interface CommentWithAuthor {
   replies?: CommentWithAuthor[];
 }
 
+// Returned by findByTask — parent comments always carry reply metadata
+export interface CommentWithReplies extends Omit<CommentWithAuthor, 'replies'> {
+  replies: CommentWithAuthor[];
+  totalReplies: number;
+  hasMoreReplies: boolean;
+}
+
 export interface ICommentRepository {
   findById(id: string): Promise<Comment | null>;
-  findByTask(taskId: string, page: number, limit: number): Promise<{ comments: CommentWithAuthor[]; total: number }>;
+  findByTask(taskId: string, page: number, limit: number): Promise<{ comments: CommentWithReplies[]; total: number }>;
   findParentById(id: string): Promise<Comment | null>;
   create(data: CreateCommentData): Promise<Comment>;
   update(id: string, data: UpdateCommentData): Promise<Comment>;
@@ -248,7 +277,7 @@ export interface IDepartmentRepository {
   findByName(name: string): Promise<Department | null>;
   findAll(): Promise<Department[]>;
   findWithMembers(id: string): Promise<DepartmentWithMembers | null>;
-  findAllWithCount(): Promise<DepartmentWithMembers[]>;
+  findAllWithCount(page: number, limit: number): Promise<PaginatedDepartmentsResult>;
   create(data: CreateDepartmentData): Promise<Department>;
   update(id: string, data: UpdateDepartmentData): Promise<Department>;
   delete(id: string): Promise<Department>;
@@ -257,7 +286,7 @@ export interface IDepartmentRepository {
 export interface IMembershipRepository {
   findById(id: string): Promise<DepartmentMember | null>;
   findByUserAndDepartment(userId: string, departmentId: string): Promise<DepartmentMember | null>;
-  findActiveMembersByDepartment(departmentId: string): Promise<MemberWithProfile[]>;
+  findActiveMembersByDepartment(departmentId: string, page: number, limit: number): Promise<PaginatedMembersResult>;
   findUserMemberships(userId: string): Promise<(DepartmentMember & { department: Department })[]>;
   create(data: CreateMembershipData): Promise<DepartmentMember>;
   update(id: string, data: UpdateMembershipData): Promise<DepartmentMember>;
@@ -269,7 +298,7 @@ export interface IInvitationRepository {
   findByToken(token: string): Promise<DepartmentInvitation | null>;
   findById(id: string): Promise<DepartmentInvitation | null>;
   findActiveByDepartmentAndEmail(departmentId: string, email: string): Promise<DepartmentInvitation | null>;
-  findPendingByDepartment(departmentId: string): Promise<InvitationWithInviter[]>;
+  findPendingByDepartment(departmentId: string, page: number, limit: number): Promise<PaginatedInvitationsResult>;
   create(data: CreateInvitationData): Promise<DepartmentInvitation>;
   markAccepted(id: string): Promise<DepartmentInvitation>;
   delete(id: string): Promise<void>;

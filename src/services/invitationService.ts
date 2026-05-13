@@ -6,7 +6,7 @@ import { PrismaMembershipRepository } from '../repositories/prisma/membershipRep
 import { PrismaDepartmentRepository } from '../repositories/prisma/departmentRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
-import { InvitationWithInviter } from '../repositories/interfaces';
+import { InvitationWithInviter, PaginatedInvitationsResult } from '../repositories/interfaces';
 import { ServiceError } from './departmentService';
 import { mapPrismaConflict } from '../utils/prismaError';
 import sendEmail from '../utils/email';
@@ -235,9 +235,11 @@ export const cancelInvitation = async (
 // ─── List Pending Invitations ─────────────────────────────────
 
 export const listPendingInvitations = async (
-  departmentId: string
-): Promise<InvitationWithInviter[]> => {
+  departmentId: string,
+  page: number,
+  limit: number
+): Promise<PaginatedInvitationsResult> => {
   const dept = await departmentRepo.findById(departmentId);
   if (!dept) throw new ServiceError('Department not found', 404);
-  return invitationRepo.findPendingByDepartment(departmentId);
+  return invitationRepo.findPendingByDepartment(departmentId, page, limit);
 };

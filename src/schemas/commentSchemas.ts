@@ -12,7 +12,7 @@ export const updateCommentSchema = z.object({
 export type UpdateCommentInput = z.infer<typeof updateCommentSchema>;
 
 export const getCommentsQuerySchema = z.object({
-  page:  z.coerce.number().int().positive().max(10000).default(1),
+  page:  z.coerce.number().int().positive().max(1000).default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
 export type GetCommentsQuery = z.infer<typeof getCommentsQuerySchema>;

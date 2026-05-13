@@ -93,7 +93,8 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     const profile = await prisma.profile.findUnique({ where: { email } });
     if (!profile) {
-      sendError(res, req, 404, 'NOT_FOUND', 'There is no user with that email address');
+      // Return 200 with generic message to prevent email enumeration
+      res.status(200).json({ success: true, message: 'If an account with that email exists, a reset link has been sent' });
       return;
     }
 
@@ -114,7 +115,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     try {
       await sendEmail({ email: profile.email, subject: 'Password reset token (valid for 15 minutes)', message });
-      res.status(200).json({ success: true, message: 'Token sent to email' });
+      res.status(200).json({ success: true, message: 'If an account with that email exists, a reset link has been sent' });
     } catch {
       try {
         await prisma.profile.update({

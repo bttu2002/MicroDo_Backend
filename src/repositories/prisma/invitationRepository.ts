@@ -4,7 +4,9 @@ import {
   IInvitationRepository,
   CreateInvitationData,
   InvitationWithInviter,
+  PaginatedInvitationsResult,
 } from '../interfaces';
+import { buildSkip } from '../../utils/pagination';
 
 export class PrismaInvitationRepository implements IInvitationRepository {
   async findByToken(token: string): Promise<DepartmentInvitation | null> {
@@ -29,20 +31,32 @@ export class PrismaInvitationRepository implements IInvitationRepository {
     });
   }
 
-  async findPendingByDepartment(departmentId: string): Promise<InvitationWithInviter[]> {
-    const rows = await prisma.departmentInvitation.findMany({
-      where: {
-        departmentId,
-        acceptedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      include: {
-        inviter: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findPendingByDepartment(
+    departmentId: string,
+    page: number,
+    limit: number
+  ): Promise<PaginatedInvitationsResult> {
+    const skip = buildSkip(page, limit);
+    const where = {
+      departmentId,
+      acceptedAt: null,
+      expiresAt: { gt: new Date() },
+    };
 
-    return rows.map(r => ({
+    const [rows, total] = await prisma.$transaction([
+      prisma.departmentInvitation.findMany({
+        where,
+        include: {
+          inviter: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take: limit,
+      }),
+      prisma.departmentInvitation.count({ where }),
+    ]);
+
+    const invitations: InvitationWithInviter[] = rows.map(r => ({
       id: r.id,
       departmentId: r.departmentId,
       email: r.email,
@@ -54,6 +68,8 @@ export class PrismaInvitationRepository implements IInvitationRepository {
       createdAt: r.createdAt,
       inviter: r.inviter,
     }));
+
+    return { invitations, total, page, limit };
   }
 
   async create(data: CreateInvitationData): Promise<DepartmentInvitation> {

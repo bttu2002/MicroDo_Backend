@@ -5,7 +5,11 @@ import {
   CreateCommentData,
   UpdateCommentData,
   CommentWithAuthor,
+  CommentWithReplies,
 } from '../interfaces';
+import { buildSkip } from '../../utils/pagination';
+
+const REPLY_CAP = 20;
 
 const authorSelect = {
   id: true,
@@ -64,13 +68,25 @@ export class PrismaCommentRepository implements ICommentRepository {
     taskId: string,
     page: number,
     limit: number
-  ): Promise<{ comments: CommentWithAuthor[]; total: number }> {
-    const skip = (page - 1) * limit;
+  ): Promise<{ comments: CommentWithReplies[]; total: number }> {
+    const skip = buildSkip(page, limit);
 
-    const [rawComments, total] = await Promise.all([
+    const replySelect = {
+      id: true,
+      taskId: true,
+      authorId: true,
+      content: true,
+      parentId: true,
+      createdAt: true,
+      updatedAt: true,
+      deletedAt: true,
+      author: { select: authorSelect },
+    } as const;
+
+    const [rawComments, total] = await prisma.$transaction([
       prisma.comment.findMany({
         where: { taskId, parentId: null },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         skip,
         take: limit,
         select: {
@@ -83,28 +99,22 @@ export class PrismaCommentRepository implements ICommentRepository {
           updatedAt: true,
           deletedAt: true,
           author: { select: authorSelect },
+          _count: { select: { replies: true } },
           replies: {
-            orderBy: { createdAt: 'asc' },
-            select: {
-              id: true,
-              taskId: true,
-              authorId: true,
-              content: true,
-              parentId: true,
-              createdAt: true,
-              updatedAt: true,
-              deletedAt: true,
-              author: { select: authorSelect },
-            },
+            take: REPLY_CAP,
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            select: replySelect,
           },
         },
       }),
       prisma.comment.count({ where: { taskId, parentId: null } }),
     ]);
 
-    const comments = rawComments.map(r => ({
+    const comments: CommentWithReplies[] = rawComments.map(r => ({
       ...mapToCommentWithAuthor(r),
       replies: r.replies.map(reply => mapToCommentWithAuthor(reply)),
+      totalReplies: r._count.replies,
+      hasMoreReplies: r._count.replies > r.replies.length,
     }));
 
     return { comments, total };

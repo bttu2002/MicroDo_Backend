@@ -5,7 +5,9 @@ import {
   CreateMembershipData,
   UpdateMembershipData,
   MemberWithProfile,
+  PaginatedMembersResult,
 } from '../interfaces';
+import { buildSkip } from '../../utils/pagination';
 
 export class PrismaMembershipRepository implements IMembershipRepository {
   async findById(id: string): Promise<DepartmentMember | null> {
@@ -21,18 +23,30 @@ export class PrismaMembershipRepository implements IMembershipRepository {
     });
   }
 
-  async findActiveMembersByDepartment(departmentId: string): Promise<MemberWithProfile[]> {
-    const rows = await prisma.departmentMember.findMany({
-      where: { departmentId, status: 'ACTIVE' },
-      include: {
-        member: {
-          select: { id: true, email: true, name: true, avatar: true },
-        },
-      },
-      orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
-    });
+  async findActiveMembersByDepartment(
+    departmentId: string,
+    page: number,
+    limit: number
+  ): Promise<PaginatedMembersResult> {
+    const skip = buildSkip(page, limit);
+    const where = { departmentId, status: 'ACTIVE' as const };
 
-    return rows.map(r => ({
+    const [rows, total] = await prisma.$transaction([
+      prisma.departmentMember.findMany({
+        where,
+        include: {
+          member: {
+            select: { id: true, email: true, name: true, avatar: true },
+          },
+        },
+        orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }, { id: 'asc' }],
+        skip,
+        take: limit,
+      }),
+      prisma.departmentMember.count({ where }),
+    ]);
+
+    const members: MemberWithProfile[] = rows.map(r => ({
       id: r.id,
       userId: r.userId,
       departmentId: r.departmentId,
@@ -42,6 +56,8 @@ export class PrismaMembershipRepository implements IMembershipRepository {
       invitedBy: r.invitedBy,
       profile: r.member,
     }));
+
+    return { members, total, page, limit };
   }
 
   async findUserMemberships(
@@ -50,7 +66,7 @@ export class PrismaMembershipRepository implements IMembershipRepository {
     return prisma.departmentMember.findMany({
       where: { userId, status: 'ACTIVE' },
       include: { department: true },
-      orderBy: { joinedAt: 'asc' },
+      orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
     });
   }
 

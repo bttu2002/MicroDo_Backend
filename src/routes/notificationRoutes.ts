@@ -9,6 +9,7 @@ import {
   markAllRead,
 } from '../controllers/notificationController';
 import { getNotificationsQuerySchema } from '../schemas/notificationSchemas';
+import { uuidParamSchema } from '../schemas/commonSchemas';
 
 const router = Router();
 
@@ -22,6 +23,6 @@ router.patch('/read-all', markAllRead);
 
 router.get('/', validateRequest({ query: getNotificationsQuerySchema }), getNotifications);
 router.get('/unread-count', getUnreadCount);
-router.patch('/:id/read', markRead);
+router.patch('/:id/read', validateRequest({ params: uuidParamSchema }), markRead);
 
 export default router;

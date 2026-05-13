@@ -9,6 +9,7 @@ import {
   TaskStatsResult,
 } from '../interfaces';
 import { isUUID } from '../../utils/compatibility';
+import { buildSkip } from '../../utils/pagination';
 
 export class PrismaTaskRepository implements ITaskRepository {
 
@@ -46,6 +47,7 @@ export class PrismaTaskRepository implements ITaskRepository {
    * - Filtering  : status, priority, tag, search (case-insensitive)
    * - Sorting    : deadline | createdAt | priority | status | title, asc | desc
    * - Pagination : page + limit with safe bounds
+   * - Transaction: count and data fetched in single $transaction to avoid drift
    */
   async findManyPaginated(options: FindManyPaginatedOptions): Promise<PaginatedTasksResult> {
     const { profileId, filter = {}, sort = {}, pagination = {}, scopeFilter } = options;
@@ -53,14 +55,11 @@ export class PrismaTaskRepository implements ITaskRepository {
     // ── Pagination bounds ──
     const page  = Math.max(1, pagination.page  ?? 1);
     const limit = Math.min(50, Math.max(1, pagination.limit ?? 10));
-    const skip  = (page - 1) * limit;
+    const skip  = buildSkip(page, limit);
 
     // ── Build WHERE clause ──
-    // scopeFilter: RBAC-aware filter from taskQueryBuilder (personal / dept / admin)
-    // If not provided, defaults to personal filter (tasks owned by this profile)
     const baseScope: Prisma.TaskWhereInput = scopeFilter ?? { profileId };
 
-    // Build additional filters on top of scope
     const additionalFilters: Prisma.TaskWhereInput = {};
 
     if (filter.status) {
@@ -72,34 +71,34 @@ export class PrismaTaskRepository implements ITaskRepository {
     }
 
     if (filter.tag) {
-      // Prisma array contains: checks if tags array includes the value
       additionalFilters.tags = { has: filter.tag };
     }
 
     if (filter.search) {
-      // Case-insensitive partial match — equivalent to Mongo $regex with 'i'
       additionalFilters.title = {
         contains: filter.search,
         mode: 'insensitive',
       };
     }
 
-    // Merge RBAC scope + user filters using Prisma AND
     const where: Prisma.TaskWhereInput = {
       AND: [baseScope, additionalFilters],
     };
 
-    // ── Build ORDER BY clause ──
+    // ── Build ORDER BY clause — stable with id tiebreaker ──
     const validSortFields = ['deadline', 'createdAt', 'priority', 'status', 'title'] as const;
     const sortField = validSortFields.includes(sort.sortBy as typeof validSortFields[number])
       ? sort.sortBy!
-      : 'createdAt'; // Default sort: newest first
+      : 'createdAt';
 
     const sortOrder: Prisma.SortOrder = sort.order === 'asc' ? 'asc' : 'desc';
-    const orderBy: Prisma.TaskOrderByWithRelationInput = { [sortField]: sortOrder };
+    const orderBy: Prisma.TaskOrderByWithRelationInput[] = [
+      { [sortField]: sortOrder },
+      { id: sortOrder },
+    ];
 
-    // ── Execute queries in parallel ──
-    const [tasks, total] = await Promise.all([
+    // ── Execute count + rows in single transaction to avoid drift ──
+    const [tasks, total] = await prisma.$transaction([
       prisma.task.findMany({ where, orderBy, skip, take: limit }),
       prisma.task.count({ where }),
     ]);

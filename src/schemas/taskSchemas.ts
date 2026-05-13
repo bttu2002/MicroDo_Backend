@@ -22,7 +22,7 @@ export const updateTaskSchema = z.object({
 export type UpdateTaskBody = z.infer<typeof updateTaskSchema>;
 
 export const getTasksQuerySchema = z.object({
-  page:     z.coerce.number().int().positive().max(10000).default(1),
+  page:     z.coerce.number().int().positive().max(1000).default(1),
   limit:    z.coerce.number().int().positive().max(100).default(10),
   status:   z.enum(['todo', 'doing', 'done']).optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),

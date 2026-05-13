@@ -23,6 +23,8 @@ import {
   addMemberSchema,
   changeMemberRoleSchema,
   transferOwnershipSchema,
+  getMembersQuerySchema,
+  getInvitationsQuerySchema,
 } from '../schemas/departmentSchemas';
 import { sendInvitationSchema } from '../schemas/invitationSchemas';
 
@@ -36,7 +38,7 @@ router.use('/:departmentId', attachDepartmentContext);
 // ─── Member management ──────────────────────────────────────
 
 // GET    /api/departments/:departmentId/members
-router.get('/:departmentId/members', requireDepartmentAccess, listDepartmentMembers);
+router.get('/:departmentId/members', requireDepartmentAccess, validateRequest({ query: getMembersQuerySchema }), listDepartmentMembers);
 
 // POST   /api/departments/:departmentId/members
 router.post('/:departmentId/members', departmentWriteLimiter, requireDepartmentAdmin, validateRequest({ body: addMemberSchema }), addDepartmentMember);
@@ -62,7 +64,7 @@ router.post(
 router.post('/:departmentId/invitations', departmentWriteLimiter, requireDepartmentAdmin, validateRequest({ body: sendInvitationSchema }), sendInvitation);
 
 // GET    /api/departments/:departmentId/invitations
-router.get('/:departmentId/invitations', requireDepartmentAdmin, listInvitations);
+router.get('/:departmentId/invitations', requireDepartmentAdmin, validateRequest({ query: getInvitationsQuerySchema }), listInvitations);
 
 // DELETE /api/departments/:departmentId/invitations/:invitationId
 router.delete('/:departmentId/invitations/:invitationId', departmentWriteLimiter, requireDepartmentAdmin, cancelInvitation);

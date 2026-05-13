@@ -4,6 +4,7 @@ import { validateRequest } from '../middleware/validateRequest';
 import { taskWriteLimiter } from '../middleware/rateLimiter';
 import { createTask, getTasks, updateTask, deleteTask, getTaskStats } from '../controllers/taskController';
 import { createTaskSchema, updateTaskSchema, getTasksQuerySchema } from '../schemas/taskSchemas';
+import { uuidParamSchema } from '../schemas/commonSchemas';
 
 const router = Router();
 
@@ -20,9 +21,9 @@ router.get('/', validateRequest({ query: getTasksQuerySchema }), getTasks);
 router.get('/stats', getTaskStats);
 
 // PUT /api/tasks/:id
-router.put('/:id', taskWriteLimiter, validateRequest({ body: updateTaskSchema }), updateTask);
+router.put('/:id', taskWriteLimiter, validateRequest({ params: uuidParamSchema, body: updateTaskSchema }), updateTask);
 
 // DELETE /api/tasks/:id
-router.delete('/:id', taskWriteLimiter, deleteTask);
+router.delete('/:id', taskWriteLimiter, validateRequest({ params: uuidParamSchema }), deleteTask);
 
 export default router;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DepartmentMemberRole } from '@prisma/client';
 
+
 export const createDepartmentSchema = z.object({
   name:        z.string().trim().min(1, 'Name is required').max(100),
   description: z.string().trim().max(500).optional(),
@@ -44,3 +45,21 @@ export const deleteDepartmentQuerySchema = z.object({
   force: z.string().optional().transform(v => v === 'true'),
 });
 export type DeleteDepartmentQuery = z.infer<typeof deleteDepartmentQuerySchema>;
+
+export const getDepartmentsQuerySchema = z.object({
+  page:  z.coerce.number().int().positive().max(1000).default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
+});
+export type GetDepartmentsQuery = z.infer<typeof getDepartmentsQuerySchema>;
+
+export const getMembersQuerySchema = z.object({
+  page:  z.coerce.number().int().positive().max(1000).default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+export type GetMembersQuery = z.infer<typeof getMembersQuerySchema>;
+
+export const getInvitationsQuerySchema = z.object({
+  page:  z.coerce.number().int().positive().max(1000).default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+export type GetInvitationsQuery = z.infer<typeof getInvitationsQuerySchema>;

@@ -6,6 +6,7 @@ import { getDashboard, getUsers, banUser, unbanUser } from '../controllers/admin
 import { assignUserToDepartment, removeUserFromDepartment } from '../controllers/departmentController';
 import { getUsersQuerySchema } from '../schemas/adminSchemas';
 import { assignUserToDepartmentSchema, removeUserFromDepartmentSchema } from '../schemas/departmentSchemas';
+import { uuidParamSchema } from '../schemas/commonSchemas';
 
 const router = Router();
 
@@ -19,10 +20,10 @@ router.get('/dashboard', getDashboard);
 router.get('/users', validateRequest({ query: getUsersQuerySchema }), getUsers);
 
 // PATCH /api/admin/users/:id/ban
-router.patch('/users/:id/ban', banUser);
+router.patch('/users/:id/ban', validateRequest({ params: uuidParamSchema }), banUser);
 
 // PATCH /api/admin/users/:id/unban
-router.patch('/users/:id/unban', unbanUser);
+router.patch('/users/:id/unban', validateRequest({ params: uuidParamSchema }), unbanUser);
 
 // PATCH /api/admin/users/:id/department
 router.patch('/users/:id/department', validateRequest({ body: assignUserToDepartmentSchema }), assignUserToDepartment);

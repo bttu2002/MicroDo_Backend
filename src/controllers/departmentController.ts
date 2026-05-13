@@ -13,6 +13,8 @@ import type {
   AssignUserToDepartmentInput,
   RemoveUserFromDepartmentInput,
   DeleteDepartmentQuery,
+  GetDepartmentsQuery,
+  GetMembersQuery,
 } from '../schemas/departmentSchemas';
 
 // ─── Department CRUD (admin) ──────────────────────────────────
@@ -37,8 +39,19 @@ export const createDepartment = async (req: AuthRequest, res: Response): Promise
 
 export const getDepartments = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const departments = await departmentService.getDepartments();
-    res.status(200).json({ success: true, count: departments.length, data: departments });
+    const { page, limit } = res.locals.validated.query as GetDepartmentsQuery;
+    const result = await departmentService.getDepartments(page, limit);
+    res.status(200).json({
+      success: true,
+      count: result.departments.length,
+      pagination: {
+        page:       result.page,
+        limit:      result.limit,
+        total:      result.total,
+        totalPages: Math.ceil(result.total / result.limit),
+      },
+      data: result.departments,
+    });
   } catch (error) {
     if (error instanceof departmentService.ServiceError) {
       sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);
@@ -104,8 +117,19 @@ export const deleteDepartment = async (req: AuthRequest, res: Response): Promise
 export const listDepartmentMembers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const departmentId = req.params['departmentId'] as string;
-    const members = await membershipService.listMembers(departmentId);
-    res.status(200).json({ success: true, count: members.length, data: members });
+    const { page, limit } = res.locals.validated.query as GetMembersQuery;
+    const result = await membershipService.listMembers(departmentId, page, limit);
+    res.status(200).json({
+      success: true,
+      count: result.members.length,
+      pagination: {
+        page:       result.page,
+        limit:      result.limit,
+        total:      result.total,
+        totalPages: Math.ceil(result.total / result.limit),
+      },
+      data: result.members,
+    });
   } catch (error) {
     if (error instanceof departmentService.ServiceError) {
       sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);

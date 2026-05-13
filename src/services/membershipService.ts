@@ -4,7 +4,7 @@ import { PrismaMembershipRepository } from '../repositories/prisma/membershipRep
 import { PrismaDepartmentRepository } from '../repositories/prisma/departmentRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
-import { MemberWithProfile } from '../repositories/interfaces';
+import { MemberWithProfile, PaginatedMembersResult } from '../repositories/interfaces';
 import { ServiceError } from './departmentService';
 import { mapPrismaConflict } from '../utils/prismaError';
 
@@ -27,10 +27,14 @@ const canManage = (actor: DepartmentMemberRole, target: DepartmentMemberRole): b
 
 // ─── Read ─────────────────────────────────────────────────────
 
-export const listMembers = async (departmentId: string): Promise<MemberWithProfile[]> => {
+export const listMembers = async (
+  departmentId: string,
+  page: number,
+  limit: number
+): Promise<PaginatedMembersResult> => {
   const dept = await departmentRepo.findById(departmentId);
   if (!dept) throw new ServiceError('Department not found', 404);
-  return membershipRepo.findActiveMembersByDepartment(departmentId);
+  return membershipRepo.findActiveMembersByDepartment(departmentId, page, limit);
 };
 
 export const getMembership = async (

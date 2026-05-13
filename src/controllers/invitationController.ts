@@ -5,6 +5,7 @@ import { ServiceError } from '../services/departmentService';
 import logger from '../config/logger';
 import { sendError, codeFor } from '../utils/apiResponse';
 import type { SendInvitationInput } from '../schemas/invitationSchemas';
+import type { GetInvitationsQuery } from '../schemas/departmentSchemas';
 
 // ─── Department-scoped ────────────────────────────────────────
 
@@ -32,8 +33,19 @@ export const sendInvitation = async (req: AuthRequest, res: Response): Promise<v
 export const listInvitations = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const departmentId = req.params['departmentId'] as string;
-    const invitations = await invitationService.listPendingInvitations(departmentId);
-    res.status(200).json({ success: true, count: invitations.length, data: invitations });
+    const { page, limit } = res.locals.validated.query as GetInvitationsQuery;
+    const result = await invitationService.listPendingInvitations(departmentId, page, limit);
+    res.status(200).json({
+      success: true,
+      count: result.invitations.length,
+      pagination: {
+        page:       result.page,
+        limit:      result.limit,
+        total:      result.total,
+        totalPages: Math.ceil(result.total / result.limit),
+      },
+      data: result.invitations,
+    });
   } catch (error) {
     if (error instanceof ServiceError) {
       sendError(res, req, error.statusCode, codeFor(error.statusCode), error.message);

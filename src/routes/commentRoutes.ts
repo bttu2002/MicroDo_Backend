@@ -9,6 +9,7 @@ import {
   deleteComment,
 } from '../controllers/commentController';
 import { createCommentSchema, updateCommentSchema, getCommentsQuerySchema } from '../schemas/commentSchemas';
+import { commentIdParamSchema } from '../schemas/commonSchemas';
 
 const router = Router();
 
@@ -22,6 +23,6 @@ router.post('/tasks/:taskId/comments', protect, commentWriteLimiter, validateReq
 router.patch('/comments/:commentId', protect, commentWriteLimiter, validateRequest({ body: updateCommentSchema }), updateComment);
 
 // DELETE /api/comments/:commentId — protect first → then user-based rate limit
-router.delete('/comments/:commentId', protect, commentWriteLimiter, deleteComment);
+router.delete('/comments/:commentId', protect, commentWriteLimiter, validateRequest({ params: commentIdParamSchema }), deleteComment);
 
 export default router;

@@ -7,7 +7,7 @@ import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogR
 import { resolveTaskPermission, TaskPermissionError } from '../utils/taskPermissions';
 import * as notificationService from './notificationService';
 import * as realtimeService from './realtimeService';
-import { CommentWithAuthor } from '../repositories/interfaces';
+import { CommentWithReplies } from '../repositories/interfaces';
 import { ServiceError } from './departmentService';
 import logger from '../config/logger';
 
@@ -69,7 +69,7 @@ export const getComments = async (
   profileId: string,
   page: number,
   limit: number
-): Promise<{ comments: CommentWithAuthor[]; total: number; page: number; limit: number; totalPages: number }> => {
+): Promise<{ comments: CommentWithReplies[]; total: number; page: number; limit: number; totalPages: number }> => {
   const task = await taskRepo.findById(taskId);
   if (!task) throw new ServiceError('Task not found', 404);
 

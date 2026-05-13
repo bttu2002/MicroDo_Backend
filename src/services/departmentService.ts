@@ -5,6 +5,7 @@ import {
   CreateDepartmentData,
   UpdateDepartmentData,
   DepartmentWithMembers,
+  PaginatedDepartmentsResult,
 } from '../repositories/interfaces';
 
 const departmentRepo = new PrismaDepartmentRepository();
@@ -32,8 +33,11 @@ export const createDepartment = async (data: CreateDepartmentData): Promise<Depa
   return departmentRepo.create(createData);
 };
 
-export const getDepartments = async (): Promise<DepartmentWithMembers[]> => {
-  return departmentRepo.findAllWithCount();
+export const getDepartments = async (
+  page: number,
+  limit: number
+): Promise<PaginatedDepartmentsResult> => {
+  return departmentRepo.findAllWithCount(page, limit);
 };
 
 export const getDepartmentById = async (id: string): Promise<DepartmentWithMembers> => {

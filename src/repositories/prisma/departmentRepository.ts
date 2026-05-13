@@ -5,8 +5,28 @@ import {
   UpdateDepartmentData,
   DepartmentWithMembers,
   MemberWithProfile,
+  PaginatedDepartmentsResult,
 } from '../interfaces';
 import { Department } from '@prisma/client';
+import { buildSkip } from '../../utils/pagination';
+
+// Members preview shown in the department list response (per department)
+const LIST_MEMBER_PREVIEW = 5;
+// Members shown for a single department detail response
+const DETAIL_MEMBER_CAP = 50;
+
+const memberSelect = {
+  id: true,
+  email: true,
+  name: true,
+  avatar: true,
+} as const;
+
+const membershipOrderBy = [
+  { role: 'asc' as const },
+  { joinedAt: 'asc' as const },
+  { id: 'asc' as const },
+];
 
 export class PrismaDepartmentRepository implements IDepartmentRepository {
   // ── Read ────────────────────────────────────────────────
@@ -20,7 +40,7 @@ export class PrismaDepartmentRepository implements IDepartmentRepository {
   }
 
   async findAll(): Promise<Department[]> {
-    return prisma.department.findMany({ orderBy: { createdAt: 'desc' } });
+    return prisma.department.findMany({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   }
 
   async findWithMembers(id: string): Promise<DepartmentWithMembers | null> {
@@ -29,35 +49,49 @@ export class PrismaDepartmentRepository implements IDepartmentRepository {
       include: {
         memberships: {
           where: { status: 'ACTIVE' },
+          take: DETAIL_MEMBER_CAP,
           include: {
-            member: { select: { id: true, email: true, name: true, avatar: true } },
+            member: { select: memberSelect },
           },
-          orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
+          orderBy: membershipOrderBy,
         },
         _count: { select: { memberships: true, tasks: true } },
       },
     });
 
     if (!dept) return null;
-    return this.mapToWithMembers(dept);
+    return this.mapToWithMembers(dept, DETAIL_MEMBER_CAP);
   }
 
-  async findAllWithCount(): Promise<DepartmentWithMembers[]> {
-    const depts = await prisma.department.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        memberships: {
-          where: { status: 'ACTIVE' },
-          include: {
-            member: { select: { id: true, email: true, name: true, avatar: true } },
-          },
-          orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
-        },
-        _count: { select: { memberships: true, tasks: true } },
-      },
-    });
+  async findAllWithCount(page: number, limit: number): Promise<PaginatedDepartmentsResult> {
+    const skip = buildSkip(page, limit);
 
-    return depts.map(d => this.mapToWithMembers(d));
+    const [depts, total] = await prisma.$transaction([
+      prisma.department.findMany({
+        skip,
+        take: limit,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: {
+          memberships: {
+            where: { status: 'ACTIVE' },
+            take: LIST_MEMBER_PREVIEW,
+            include: {
+              member: { select: memberSelect },
+            },
+            orderBy: membershipOrderBy,
+          },
+          _count: { select: { memberships: true, tasks: true } },
+        },
+      }),
+      prisma.department.count(),
+    ]);
+
+    return {
+      departments: depts.map(d => this.mapToWithMembers(d, LIST_MEMBER_PREVIEW)),
+      total,
+      page,
+      limit,
+    };
   }
 
   // ── Write ───────────────────────────────────────────────
@@ -76,24 +110,27 @@ export class PrismaDepartmentRepository implements IDepartmentRepository {
 
   // ── Private helpers ─────────────────────────────────────
 
-  private mapToWithMembers(dept: {
-    id: string;
-    name: string;
-    description: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-    memberships: Array<{
+  private mapToWithMembers(
+    dept: {
       id: string;
-      userId: string;
-      departmentId: string;
-      role: import('@prisma/client').DepartmentMemberRole;
-      status: import('@prisma/client').MembershipStatus;
-      joinedAt: Date;
-      invitedBy: string | null;
-      member: { id: string; email: string; name: string | null; avatar: string | null };
-    }>;
-    _count: { memberships: number; tasks: number };
-  }): DepartmentWithMembers {
+      name: string;
+      description: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      memberships: Array<{
+        id: string;
+        userId: string;
+        departmentId: string;
+        role: import('@prisma/client').DepartmentMemberRole;
+        status: import('@prisma/client').MembershipStatus;
+        joinedAt: Date;
+        invitedBy: string | null;
+        member: { id: string; email: string; name: string | null; avatar: string | null };
+      }>;
+      _count: { memberships: number; tasks: number };
+    },
+    memberCap: number
+  ): DepartmentWithMembers {
     const memberships: MemberWithProfile[] = dept.memberships.map(m => ({
       id: m.id,
       userId: m.userId,
@@ -112,6 +149,7 @@ export class PrismaDepartmentRepository implements IDepartmentRepository {
       createdAt: dept.createdAt,
       updatedAt: dept.updatedAt,
       memberships,
+      hasMoreMembers: dept._count.memberships > memberCap,
       _count: dept._count,
     };
   }

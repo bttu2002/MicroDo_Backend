@@ -4,6 +4,7 @@ import {
   INotificationRepository,
   CreateNotificationData,
 } from '../interfaces';
+import { buildSkip } from '../../utils/pagination';
 
 export class PrismaNotificationRepository implements INotificationRepository {
   async findByUser(
@@ -17,12 +18,12 @@ export class PrismaNotificationRepository implements INotificationRepository {
       ...(unreadOnly && { readAt: null }),
     };
 
-    const skip = (page - 1) * limit;
+    const skip = buildSkip(page, limit);
 
-    const [notifications, total] = await Promise.all([
+    const [notifications, total] = await prisma.$transaction([
       prisma.notification.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip,
         take: limit,
       }),

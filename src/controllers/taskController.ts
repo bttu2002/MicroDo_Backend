@@ -3,10 +3,12 @@ import { AuthRequest } from '../middleware/authMiddleware';
 import { TaskService, TaskServiceError, GetTasksInput } from '../services/taskService';
 import { PrismaTaskRepository } from '../repositories/prisma/taskRepository';
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
+import { PrismaMembershipRepository } from '../repositories/prisma/membershipRepository';
 
 const taskService = new TaskService(
   new PrismaTaskRepository(),
-  new PrismaProfileRepository()
+  new PrismaProfileRepository(),
+  new PrismaMembershipRepository()
 );
 
 export const createTask = async (

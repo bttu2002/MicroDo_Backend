@@ -1,7 +1,9 @@
 import { Task, Profile } from '@prisma/client';
+import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
 import {
   ITaskRepository,
   IProfileRepository,
+  IMembershipRepository,
   UpdateTaskData,
   TaskFilterOptions,
   TaskSortOptions,
@@ -22,6 +24,7 @@ export interface CreateTaskInput {
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: Date | null;
+  departmentId?: string;
 }
 
 export interface UpdateTaskInput {
@@ -58,10 +61,13 @@ export class TaskServiceError extends Error {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
+const activityLogRepo = new PrismaActivityLogRepository();
+
 export class TaskService {
   constructor(
     private readonly taskRepo: ITaskRepository,
-    private readonly profileRepo: IProfileRepository
+    private readonly profileRepo: IProfileRepository,
+    private readonly membershipRepo: IMembershipRepository
   ) {}
 
   // ─── Private Helpers ──────────────────────────────────────────────────────
@@ -80,8 +86,43 @@ export class TaskService {
     return profile;
   }
 
-  private validateTaskOwnership(task: Task, profile: Profile): void {
-    if (task.profileId !== profile.id) {
+  private async resolveTaskPermission(
+    task: Task,
+    profileId: string,
+    profile: Profile,
+    level: 'read' | 'write' | 'delete'
+  ): Promise<void> {
+    if (profile.role === 'ADMIN') return;
+
+    if (task.departmentId) {
+      const membership = await this.membershipRepo.findByUserAndDepartment(
+        profileId,
+        task.departmentId
+      );
+
+      if (!membership || membership.status !== 'ACTIVE') {
+        if (task.profileId !== profileId) {
+          throw new TaskServiceError('Not authorized to access this task', 403);
+        }
+        return;
+      }
+
+      if (level !== 'read' && membership.role === 'VIEWER') {
+        throw new TaskServiceError('VIEWER cannot modify tasks', 403);
+      }
+
+      if (
+        level !== 'read' &&
+        membership.role === 'MEMBER' &&
+        task.profileId !== profileId
+      ) {
+        throw new TaskServiceError('MEMBER can only modify their own tasks', 403);
+      }
+
+      return; // ADMIN/OWNER: full access
+    }
+
+    if (task.profileId !== profileId) {
       throw new TaskServiceError('Not authorized to access this task', 403);
     }
   }
@@ -95,6 +136,21 @@ export class TaskService {
 
     const profile = await this.resolveProfile(profileId);
 
+    if (input.departmentId) {
+      const membership = await this.membershipRepo.findByUserAndDepartment(
+        profileId,
+        input.departmentId
+      );
+
+      if (!membership || membership.status !== 'ACTIVE') {
+        throw new TaskServiceError('You are not a member of this department', 403);
+      }
+
+      if (membership.role === 'VIEWER') {
+        throw new TaskServiceError('VIEWER cannot create tasks', 403);
+      }
+    }
+
     const task = await this.taskRepo.create({
       title:       input.title.trim(),
       description: input.description ?? '',
@@ -102,7 +158,8 @@ export class TaskService {
       priority:    input.priority    ?? 'medium',
       tags:        input.tags        ?? [],
       profileId:   profile.id,
-      ...(input.deadline != null && { deadline: input.deadline }),
+      ...(input.deadline     != null && { deadline:     input.deadline }),
+      ...(input.departmentId != null && { departmentId: input.departmentId }),
     });
 
     return mapPrismaTaskToResponseDTO({ ...task, profile });
@@ -111,8 +168,15 @@ export class TaskService {
   // ─── Read (list) ──────────────────────────────────────────────────────────
 
   async getTasks(profileId: string, query: GetTasksInput): Promise<PaginatedTasksResponseDTO> {
-    const profile     = await this.resolveProfile(profileId);
-    const scopeFilter = buildScopedTaskFilter(profileId, profile.departmentId, profile.role);
+    const profile       = await this.resolveProfile(profileId);
+    const isGlobalAdmin = profile.role === 'ADMIN';
+
+    const memberships  = await this.membershipRepo.findUserMemberships(profileId);
+    const departmentIds = memberships
+      .filter(m => m.status === 'ACTIVE')
+      .map(m => m.departmentId);
+
+    const scopeFilter = buildScopedTaskFilter(profileId, departmentIds, isGlobalAdmin);
 
     if (query.status && !['todo', 'doing', 'done'].includes(query.status)) {
       throw new TaskServiceError('Invalid status. Must be: todo, doing, or done', 400);
@@ -169,7 +233,7 @@ export class TaskService {
     }
 
     const profile = await this.resolveProfile(profileId);
-    this.validateTaskOwnership(task, profile);
+    await this.resolveTaskPermission(task, profileId, profile, 'read');
 
     return mapPrismaTaskToResponseDTO({ ...task, profile });
   }
@@ -187,7 +251,7 @@ export class TaskService {
     }
 
     const profile = await this.resolveProfile(profileId);
-    this.validateTaskOwnership(task, profile);
+    await this.resolveTaskPermission(task, profileId, profile, 'write');
 
     const data: UpdateTaskData = {};
     if (input.title       !== undefined) data.title       = input.title;
@@ -218,8 +282,19 @@ export class TaskService {
     }
 
     const profile = await this.resolveProfile(profileId);
-    this.validateTaskOwnership(task, profile);
+    await this.resolveTaskPermission(task, profileId, profile, 'delete');
 
     await this.taskRepo.delete(task.id);
+
+    if (task.departmentId) {
+      void activityLogRepo.create({
+        actorUserId: profileId,
+        departmentId: task.departmentId,
+        entityType: 'task',
+        entityId: task.id,
+        action: 'task.deleted',
+        metadata: { title: task.title, ownerId: task.profileId },
+      });
+    }
   }
 }

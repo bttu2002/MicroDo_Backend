@@ -9,8 +9,6 @@ import {
   TaskStatsResult,
 } from '../interfaces';
 import { isUUID } from '../../utils/compatibility';
-// Query builder provides RBAC-aware scope filters (personal / department / admin)
-import { buildPersonalTaskFilter } from '../../utils/taskQueryBuilder';
 
 export class PrismaTaskRepository implements ITaskRepository {
 

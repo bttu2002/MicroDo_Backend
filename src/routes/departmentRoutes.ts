@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
 import { adminOnly } from '../middleware/adminMiddleware';
+import { validateRequest } from '../middleware/validateRequest';
 import {
   createDepartment,
   getDepartments,
@@ -8,15 +9,19 @@ import {
   updateDepartment,
   deleteDepartment,
 } from '../controllers/departmentController';
+import {
+  createDepartmentSchema,
+  updateDepartmentSchema,
+  deleteDepartmentQuerySchema,
+} from '../schemas/departmentSchemas';
 
 const router = Router();
 
-// Protect all admin routes with auth and admin middlewares
 router.use(protect);
 router.use(adminOnly);
 
 // POST /api/admin/departments
-router.post('/', createDepartment);
+router.post('/', validateRequest({ body: createDepartmentSchema }), createDepartment);
 
 // GET /api/admin/departments
 router.get('/', getDepartments);
@@ -25,9 +30,9 @@ router.get('/', getDepartments);
 router.get('/:id', getDepartmentById);
 
 // PATCH /api/admin/departments/:id
-router.patch('/:id', updateDepartment);
+router.patch('/:id', validateRequest({ body: updateDepartmentSchema }), updateDepartment);
 
 // DELETE /api/admin/departments/:id
-router.delete('/:id', deleteDepartment);
+router.delete('/:id', validateRequest({ query: deleteDepartmentQuerySchema }), deleteDepartment);
 
 export default router;

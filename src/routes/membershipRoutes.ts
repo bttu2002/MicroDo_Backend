@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
+import { validateRequest } from '../middleware/validateRequest';
 import {
   attachDepartmentContext,
   requireDepartmentAccess,
@@ -17,6 +18,12 @@ import {
   listInvitations,
   cancelInvitation,
 } from '../controllers/invitationController';
+import {
+  addMemberSchema,
+  changeMemberRoleSchema,
+  transferOwnershipSchema,
+} from '../schemas/departmentSchemas';
+import { sendInvitationSchema } from '../schemas/invitationSchemas';
 
 const router = Router();
 
@@ -31,25 +38,26 @@ router.use('/:departmentId', attachDepartmentContext);
 router.get('/:departmentId/members', requireDepartmentAccess, listDepartmentMembers);
 
 // POST   /api/departments/:departmentId/members
-router.post('/:departmentId/members', requireDepartmentAdmin, addDepartmentMember);
+router.post('/:departmentId/members', requireDepartmentAdmin, validateRequest({ body: addMemberSchema }), addDepartmentMember);
 
 // DELETE /api/departments/:departmentId/members/:userId
 router.delete('/:departmentId/members/:userId', requireDepartmentAdmin, removeDepartmentMember);
 
 // PATCH  /api/departments/:departmentId/members/:userId/role
-router.patch('/:departmentId/members/:userId/role', requireDepartmentAdmin, changeMemberRole);
+router.patch('/:departmentId/members/:userId/role', requireDepartmentAdmin, validateRequest({ body: changeMemberRoleSchema }), changeMemberRole);
 
 // POST   /api/departments/:departmentId/transfer-ownership
 router.post(
   '/:departmentId/transfer-ownership',
   requireDepartmentAdmin,
+  validateRequest({ body: transferOwnershipSchema }),
   transferOwnership
 );
 
 // ─── Invitations (department-scoped) ─────────────────────────
 
 // POST   /api/departments/:departmentId/invitations
-router.post('/:departmentId/invitations', requireDepartmentAdmin, sendInvitation);
+router.post('/:departmentId/invitations', requireDepartmentAdmin, validateRequest({ body: sendInvitationSchema }), sendInvitation);
 
 // GET    /api/departments/:departmentId/invitations
 router.get('/:departmentId/invitations', requireDepartmentAdmin, listInvitations);

@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { prisma } from '../config/prisma';
+import logger from '../config/logger';
+import { sendError } from '../utils/apiResponse';
+import type { GetUsersQuery } from '../schemas/adminSchemas';
 
 export const getDashboard = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -10,31 +13,20 @@ export const getDashboard = async (req: AuthRequest, res: Response): Promise<voi
       prisma.task.count(),
     ]);
 
-    res.status(200).json({
-      success: true,
-      data: {
-        totalUsers,
-        bannedUsers,
-        totalTasks,
-      },
-    });
+    res.status(200).json({ success: true, data: { totalUsers, bannedUsers, totalTasks } });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    logger.error({ err: error, requestId: req.requestId }, 'getDashboard failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };
 
 export const getUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const page  = Math.max(1, parseInt(req.query.page  as string) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
-    const skip  = (page - 1) * limit;
+    const { page, limit, search } = res.locals.validated.query as GetUsersQuery;
+    const skip = (page - 1) * limit;
 
-    const where = req.query.search
-      ? { email: { contains: req.query.search as string, mode: 'insensitive' as const } }
+    const where = search !== undefined
+      ? { email: { contains: search, mode: 'insensitive' as const } }
       : {};
 
     const [totalUsers, profiles] = await Promise.all([
@@ -81,92 +73,58 @@ export const getUsers = async (req: AuthRequest, res: Response): Promise<void> =
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    logger.error({ err: error, requestId: req.requestId }, 'getUsers failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };
 
 export const banUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userIdToBan = req.params.id as string;
+    const userIdToBan = req.params['id'] as string;
 
     if (userIdToBan === req.user!.prismaId) {
-      res.status(400).json({
-        success: false,
-        message: 'Admin cannot ban themselves',
-      });
+      sendError(res, req, 403, 'FORBIDDEN', 'Admin cannot ban themselves');
       return;
     }
 
     const profile = await prisma.profile.findUnique({ where: { id: userIdToBan } });
     if (!profile) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
+      sendError(res, req, 404, 'NOT_FOUND', 'User not found');
       return;
     }
 
-    await prisma.profile.update({
-      where: { id: profile.id },
-      data: { status: 'BANNED' },
-    });
+    await prisma.profile.update({ where: { id: profile.id }, data: { status: 'BANNED' } });
 
     res.status(200).json({
       success: true,
       message: 'User has been banned',
-      data: {
-        _id: profile.mongoId,
-        id: profile.id,
-        email: profile.email,
-        status: 'BANNED',
-      },
+      data: { _id: profile.mongoId, id: profile.id, email: profile.email, status: 'BANNED' },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    logger.error({ err: error, requestId: req.requestId }, 'banUser failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };
 
 export const unbanUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userIdToUnban = req.params.id as string;
+    const userIdToUnban = req.params['id'] as string;
 
     const profile = await prisma.profile.findUnique({ where: { id: userIdToUnban } });
     if (!profile) {
-      res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
+      sendError(res, req, 404, 'NOT_FOUND', 'User not found');
       return;
     }
 
-    await prisma.profile.update({
-      where: { id: profile.id },
-      data: { status: 'ACTIVE' },
-    });
+    await prisma.profile.update({ where: { id: profile.id }, data: { status: 'ACTIVE' } });
 
     res.status(200).json({
       success: true,
       message: 'User has been unbanned',
-      data: {
-        _id: profile.mongoId,
-        id: profile.id,
-        email: profile.email,
-        status: 'ACTIVE',
-      },
+      data: { _id: profile.mongoId, id: profile.id, email: profile.email, status: 'ACTIVE' },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    logger.error({ err: error, requestId: req.requestId }, 'unbanUser failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };

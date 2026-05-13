@@ -3,6 +3,7 @@ import { Role, DepartmentMemberRole } from '@prisma/client';
 import { verifyToken } from '../utils/jwt';
 import prisma from '../config/prisma';
 import logger from '../config/logger';
+import { sendError } from '../utils/apiResponse';
 
 // Extend Express Request to include user
 export interface AuthRequest extends Request {
@@ -31,13 +32,9 @@ export const protect = async (
       token = authHeader.split(' ')[1];
     }
 
-    // Check if token exists
     if (!token) {
       logger.warn({ requestId: req.requestId, reason: 'no_token', path: req.originalUrl }, 'Auth rejected');
-      res.status(401).json({
-        success: false,
-        message: 'Not authorized, no token provided',
-      });
+      sendError(res, req, 401, 'UNAUTHORIZED', 'Not authorized, no token provided');
       return;
     }
 
@@ -52,19 +49,13 @@ export const protect = async (
 
     if (!profile) {
       logger.warn({ requestId: req.requestId, reason: 'user_not_found', path: req.originalUrl }, 'Auth rejected');
-      res.status(401).json({
-        success: false,
-        message: 'Not authorized, user profile not found',
-      });
+      sendError(res, req, 401, 'UNAUTHORIZED', 'Not authorized, user profile not found');
       return;
     }
 
     if (profile.status === 'BANNED') {
       logger.warn({ requestId: req.requestId, reason: 'banned', userId: profile.id, path: req.originalUrl }, 'Auth rejected');
-      res.status(403).json({
-        success: false,
-        message: 'Your account has been banned',
-      });
+      sendError(res, req, 403, 'FORBIDDEN', 'Your account has been banned');
       return;
     }
 
@@ -78,9 +69,6 @@ export const protect = async (
     next();
   } catch (error) {
     logger.warn({ requestId: req.requestId, reason: 'invalid_token', path: req.originalUrl }, 'Auth rejected');
-    res.status(401).json({
-      success: false,
-      message: 'Not authorized, token is invalid or expired',
-    });
+    sendError(res, req, 401, 'UNAUTHORIZED', 'Not authorized, token is invalid or expired');
   }
 };

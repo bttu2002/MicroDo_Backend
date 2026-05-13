@@ -39,7 +39,7 @@ export const commentWriteLimiter = rateLimit({
   skip: isHealthCheck,
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.prismaId;
-    return userId ?? req.ip ?? 'unknown';
+    return userId ?? 'unknown';
   },
   handler: (_req: Request, res: Response): void => {
     res.status(429).json(rateLimitBody);
@@ -57,7 +57,7 @@ export const notificationLimiter = rateLimit({
   skip: isHealthCheck,
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.prismaId;
-    return userId ?? req.ip ?? 'unknown';
+    return userId ?? 'unknown';
   },
   handler: (_req: Request, res: Response): void => {
     res.status(429).json(rateLimitBody);

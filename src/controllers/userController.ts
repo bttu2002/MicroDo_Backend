@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import prisma from '../config/prisma';
+import logger from '../config/logger';
+import { sendError } from '../utils/apiResponse';
+import type { UpdateProfileInput } from '../schemas/userSchemas';
 
 const profileSelect = {
   id:        true,
@@ -18,12 +21,12 @@ const profileSelect = {
 export const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const profile = await prisma.profile.findUnique({
-      where: { id: req.user!.prismaId },
+      where:  { id: req.user!.prismaId },
       select: profileSelect,
     });
 
     if (!profile) {
-      res.status(404).json({ success: false, message: 'User no longer exists' });
+      sendError(res, req, 404, 'NOT_FOUND', 'User no longer exists');
       return;
     }
 
@@ -44,43 +47,27 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    logger.error({ err: error, requestId: req.requestId }, 'getProfile failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, email, avatar, username } = req.body as {
-      name?: string;
-      email?: string;
-      avatar?: string;
-      username?: string;
-    };
+    const { name, email, avatar, username } = res.locals.validated.body as UpdateProfileInput;
 
-    if (email) {
+    if (email !== undefined) {
       const existing = await prisma.profile.findUnique({ where: { email } });
       if (existing && existing.id !== req.user!.prismaId) {
-        res.status(400).json({ success: false, message: 'Email is already in use by another account' });
+        sendError(res, req, 409, 'CONFLICT', 'Email is already in use by another account');
         return;
       }
     }
 
-    if (username) {
-      const trimmed = username.trim().toLowerCase();
-      if (!/^\w{3,30}$/.test(trimmed)) {
-        res.status(400).json({
-          success: false,
-          message: 'Username must be 3–30 characters and contain only letters, numbers, or underscores',
-        });
-        return;
-      }
-      const existing = await prisma.profile.findUnique({ where: { username: trimmed } });
+    if (username !== undefined) {
+      const existing = await prisma.profile.findUnique({ where: { username } });
       if (existing && existing.id !== req.user!.prismaId) {
-        res.status(400).json({ success: false, message: 'Username is already taken' });
+        sendError(res, req, 409, 'CONFLICT', 'Username is already taken');
         return;
       }
     }
@@ -91,7 +78,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
         ...(name     !== undefined && { name }),
         ...(avatar   !== undefined && { avatar }),
         ...(email    !== undefined && { email }),
-        ...(username !== undefined && { username: username.trim().toLowerCase() }),
+        ...(username !== undefined && { username }),
       },
       select: profileSelect,
     });
@@ -114,10 +101,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    logger.error({ err: error, requestId: req.requestId }, 'updateProfile failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
   }
 };

@@ -21,6 +21,7 @@ import notificationRoutes from './routes/notificationRoutes';
 import { protect, AuthRequest } from './middleware/authMiddleware';
 import { initSocket, getIO } from './socket/index';
 import prisma from './config/prisma';
+import { sendError } from './utils/apiResponse';
 
 const app = express();
 
@@ -118,11 +119,7 @@ app.get('/health', (_req: Request, res: Response) => {
 app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => {
   if (res.headersSent) return;
   logger.error({ err, requestId: req.requestId }, 'Unhandled error');
-  res.status(500).json({
-    success: false,
-    code: 'INTERNAL_ERROR',
-    message: 'An unexpected error occurred',
-  });
+  sendError(res, req, 500, 'INTERNAL_ERROR', 'An unexpected error occurred');
 });
 
 // ─── HTTP Server + Socket.IO ──────────────────────────────────

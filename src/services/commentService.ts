@@ -9,6 +9,7 @@ import * as notificationService from './notificationService';
 import * as realtimeService from './realtimeService';
 import { CommentWithAuthor } from '../repositories/interfaces';
 import { ServiceError } from './departmentService';
+import logger from '../config/logger';
 
 const commentRepo = new PrismaCommentRepository();
 const taskRepo = new PrismaTaskRepository();
@@ -127,12 +128,12 @@ export const createComment = async (
   // Notify task owner (fire-and-forget)
   void notificationService.notifyCommentAdded(
     task.profileId, profileId, profile.name, taskId, comment.id, task.departmentId
-  ).catch(err => console.error('[notifyCommentAdded]', err));
+  ).catch(err => logger.error({ err, context: 'notifyCommentAdded', taskId, commentId: comment.id }, 'Fire-and-forget failed'));
 
   // Parse mentions (fire-and-forget)
   void notificationService.processMentions(
     content, taskId, comment.id, task.departmentId, profileId, profile.name
-  ).catch(err => console.error('[processMentions]', err));
+  ).catch(err => logger.error({ err, context: 'processMentions', taskId, commentId: comment.id }, 'Fire-and-forget failed'));
 
   // Activity log (fire-and-forget)
   void activityLogRepo.create({
@@ -142,7 +143,7 @@ export const createComment = async (
     entityId: comment.id,
     action: 'comment.created',
     metadata: { taskId },
-  }).catch(err => console.error('[ActivityLog]', err));
+  }).catch(err => logger.error({ err, context: 'activityLog', action: 'comment.created' }, 'Fire-and-forget failed'));
 
   return comment;
 };
@@ -182,7 +183,7 @@ export const updateComment = async (
     entityId: commentId,
     action: 'comment.updated',
     metadata: { taskId: comment.taskId },
-  }).catch(err => console.error('[ActivityLog]', err));
+  }).catch(err => logger.error({ err, context: 'activityLog', action: 'comment.updated' }, 'Fire-and-forget failed'));
 
   return updated;
 };
@@ -220,5 +221,5 @@ export const deleteComment = async (
     entityId: commentId,
     action: 'comment.deleted',
     metadata: { taskId: comment.taskId },
-  }).catch(err => console.error('[ActivityLog]', err));
+  }).catch(err => logger.error({ err, context: 'activityLog', action: 'comment.deleted' }, 'Fire-and-forget failed'));
 };

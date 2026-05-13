@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Role, DepartmentMemberRole } from '@prisma/client';
 import { verifyToken } from '../utils/jwt';
 import prisma from '../config/prisma';
+import logger from '../config/logger';
 
 // Extend Express Request to include user
 export interface AuthRequest extends Request {
@@ -32,6 +33,7 @@ export const protect = async (
 
     // Check if token exists
     if (!token) {
+      logger.warn({ requestId: req.requestId, reason: 'no_token', path: req.originalUrl }, 'Auth rejected');
       res.status(401).json({
         success: false,
         message: 'Not authorized, no token provided',
@@ -49,6 +51,7 @@ export const protect = async (
     });
 
     if (!profile) {
+      logger.warn({ requestId: req.requestId, reason: 'user_not_found', path: req.originalUrl }, 'Auth rejected');
       res.status(401).json({
         success: false,
         message: 'Not authorized, user profile not found',
@@ -57,6 +60,7 @@ export const protect = async (
     }
 
     if (profile.status === 'BANNED') {
+      logger.warn({ requestId: req.requestId, reason: 'banned', userId: profile.id, path: req.originalUrl }, 'Auth rejected');
       res.status(403).json({
         success: false,
         message: 'Your account has been banned',
@@ -73,6 +77,7 @@ export const protect = async (
 
     next();
   } catch (error) {
+    logger.warn({ requestId: req.requestId, reason: 'invalid_token', path: req.originalUrl }, 'Auth rejected');
     res.status(401).json({
       success: false,
       message: 'Not authorized, token is invalid or expired',

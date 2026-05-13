@@ -1,7 +1,11 @@
 import express, { Request, Response } from 'express';
 import { createServer } from 'http';
+import type { IncomingMessage, ServerResponse } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import pinoHttp from 'pino-http';
+import logger from './config/logger';
+import { requestIdMiddleware } from './middleware/requestId';
 import authRoutes from './routes/authRoutes';
 import taskRoutes from './routes/taskRoutes';
 import userRoutes from './routes/userRoutes';
@@ -20,7 +24,10 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ─── Middleware ───────────────────────────────────────────────
+// ─── Observability (must be first) ───────────────────────────
+app.use(requestIdMiddleware);
+
+// ─── Security / CORS ─────────────────────────────────────────
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.FRONTEND_URL,
@@ -39,6 +46,34 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// ─── Request logging ─────────────────────────────────────────
+app.use(pinoHttp({
+  logger,
+  genReqId: (req: IncomingMessage) =>
+    (req as { requestId?: string }).requestId ?? crypto.randomUUID(),
+  customLogLevel: (_req: IncomingMessage, res: ServerResponse, err?: Error): string => {
+    if (err != null || res.statusCode >= 500) return 'error';
+    if (res.statusCode >= 400) return 'warn';
+    return 'info';
+  },
+  redact: {
+    paths: ['req.headers.authorization', 'req.headers.cookie'],
+    censor: '[REDACTED]',
+  },
+  serializers: {
+    req: (req: { method: string; url: string; id: unknown }) => ({
+      id:     req.id,
+      method: req.method,
+      url:    req.url,
+    }),
+    res: (res: { statusCode: number }) => ({
+      statusCode: res.statusCode,
+    }),
+  },
+}));
+
+// ─── Body parsing ─────────────────────────────────────────────
 app.use(express.json());
 
 // ─── Routes ───────────────────────────────────────────────────
@@ -58,11 +93,11 @@ app.get('/api/protected', protect, (req: AuthRequest, res: Response) => {
 });
 
 // Health check
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({ message: 'Welcome to MicroDo Backend API', status: 'online', version: '1.0.0' });
 });
 
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -71,7 +106,7 @@ const httpServer = createServer(app);
 initSocket(httpServer);
 
 httpServer.listen(port, () => {
-  console.log(`[server]: Server is running at http://localhost:${port}`);
+  logger.info({ port }, 'Server started');
 });
 
 export default app;

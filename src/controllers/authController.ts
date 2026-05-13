@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import prisma from '../config/prisma';
 import { generateToken } from '../utils/jwt';
 import sendEmail from '../utils/email';
+import logger from '../config/logger';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -155,9 +156,9 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
           data: { passwordResetToken: null, passwordResetExpires: null },
         });
       } catch (cleanupError) {
-        console.error(
-          '[forgotPassword] Token cleanup failed:',
-          cleanupError instanceof Error ? cleanupError.message : cleanupError
+        logger.error(
+          { err: cleanupError, context: 'forgotPassword', action: 'token_cleanup' },
+          'Reset token cleanup failed after email error'
         );
       }
 

@@ -3,6 +3,7 @@ import { PrismaNotificationRepository } from '../repositories/prisma/notificatio
 import { PrismaProfileRepository } from '../repositories/prisma/profileRepository';
 import { CreateNotificationData } from '../repositories/interfaces';
 import * as realtimeService from './realtimeService';
+import logger from '../config/logger';
 
 const notificationRepo = new PrismaNotificationRepository();
 const profileRepo = new PrismaProfileRepository();
@@ -62,7 +63,7 @@ export const processMentions = async (
         entityId: commentId,
       });
     } catch (err) {
-      console.error('[Mention notification failed]', err);
+      logger.error({ err, context: 'processMentions', username, taskId, commentId }, 'Mention notification failed');
     }
   }
 };
@@ -90,7 +91,7 @@ export const notifyCommentAdded = async (
       entityId: commentId,
     });
   } catch (err) {
-    console.error('[CommentAdded notification failed]', err);
+    logger.error({ err, context: 'notifyCommentAdded', taskId, commentId }, 'Comment added notification failed');
   }
 };
 

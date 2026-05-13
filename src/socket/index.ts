@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http';
 import { Server as SocketServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma';
+import logger from '../config/logger';
 
 export interface SocketUser {
   prismaId: string;
@@ -26,31 +27,46 @@ export function initSocket(httpServer: HttpServer): SocketServer {
         (socket.handshake.headers['authorization'] as string | undefined)?.replace('Bearer ', '');
 
       if (!token) {
+        logger.warn({ ip: socket.handshake.address, reason: 'no_token' }, 'Socket auth rejected');
         return next(new Error('Authentication required'));
       }
 
       const secret = process.env.JWT_SECRET;
-      if (!secret) return next(new Error('Server configuration error'));
+      if (!secret) {
+        logger.error({ reason: 'missing_jwt_secret' }, 'Socket auth failed — server misconfiguration');
+        return next(new Error('Server configuration error'));
+      }
 
       const decoded = jwt.verify(token, secret) as { id?: string; userId?: string };
       const userId = decoded.id ?? decoded.userId;
-      if (!userId) return next(new Error('Invalid token payload'));
+      if (!userId) {
+        logger.warn({ ip: socket.handshake.address, reason: 'invalid_payload' }, 'Socket auth rejected');
+        return next(new Error('Invalid token payload'));
+      }
 
       const profile = await prisma.profile.findUnique({
         where: { id: userId },
         select: { id: true, role: true, status: true },
       });
 
-      if (!profile) return next(new Error('User not found'));
-      if (profile.status === 'BANNED') return next(new Error('Account is banned'));
+      if (!profile) {
+        logger.warn({ ip: socket.handshake.address, reason: 'user_not_found' }, 'Socket auth rejected');
+        return next(new Error('User not found'));
+      }
+
+      if (profile.status === 'BANNED') {
+        logger.warn({ userId: profile.id, reason: 'banned' }, 'Socket auth rejected');
+        return next(new Error('Account is banned'));
+      }
 
       (socket.data as { user: SocketUser }).user = {
         prismaId: profile.id,
-        role: profile.role,
+        role:     profile.role,
       };
 
       next();
     } catch {
+      logger.warn({ ip: socket.handshake.address, reason: 'invalid_token' }, 'Socket auth rejected');
       next(new Error('Invalid or expired token'));
     }
   });
@@ -58,6 +74,8 @@ export function initSocket(httpServer: HttpServer): SocketServer {
   // ─── Connection handler ───────────────────────────────────────
   io.on('connection', (socket: Socket) => {
     const user = (socket.data as { user: SocketUser }).user;
+
+    logger.info({ userId: user.prismaId, role: user.role }, 'Socket connected');
 
     // Auto-join personal room
     void socket.join(`user:${user.prismaId}`);
@@ -91,7 +109,7 @@ export function initSocket(httpServer: HttpServer): SocketServer {
           const membership = await prisma.departmentMember.findUnique({
             where: {
               userId_departmentId: {
-                userId: user.prismaId,
+                userId:       user.prismaId,
                 departmentId: task.departmentId,
               },
             },
@@ -102,8 +120,8 @@ export function initSocket(httpServer: HttpServer): SocketServer {
             void socket.join(`task:${taskId}`);
           }
         }
-      } catch {
-        // Silently ignore join failures
+      } catch (err) {
+        logger.error({ err, userId: user.prismaId, taskId }, 'Socket join:task failed');
       }
     });
 
@@ -130,13 +148,13 @@ export function initSocket(httpServer: HttpServer): SocketServer {
         if (membership?.status === 'ACTIVE') {
           void socket.join(`department:${departmentId}`);
         }
-      } catch {
-        // Silently ignore join failures
+      } catch (err) {
+        logger.error({ err, userId: user.prismaId, departmentId }, 'Socket join:department failed');
       }
     });
 
-    socket.on('disconnect', () => {
-      // Socket.IO handles room cleanup automatically
+    socket.on('disconnect', (reason: string) => {
+      logger.info({ userId: user.prismaId, reason }, 'Socket disconnected');
     });
   });
 

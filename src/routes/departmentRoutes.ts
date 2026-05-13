@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
 import { adminOnly } from '../middleware/adminMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
+import { departmentWriteLimiter } from '../middleware/rateLimiter';
 import {
   createDepartment,
   getDepartments,
@@ -21,7 +22,7 @@ router.use(protect);
 router.use(adminOnly);
 
 // POST /api/admin/departments
-router.post('/', validateRequest({ body: createDepartmentSchema }), createDepartment);
+router.post('/', departmentWriteLimiter, validateRequest({ body: createDepartmentSchema }), createDepartment);
 
 // GET /api/admin/departments
 router.get('/', getDepartments);
@@ -30,9 +31,9 @@ router.get('/', getDepartments);
 router.get('/:id', getDepartmentById);
 
 // PATCH /api/admin/departments/:id
-router.patch('/:id', validateRequest({ body: updateDepartmentSchema }), updateDepartment);
+router.patch('/:id', departmentWriteLimiter, validateRequest({ body: updateDepartmentSchema }), updateDepartment);
 
 // DELETE /api/admin/departments/:id
-router.delete('/:id', validateRequest({ query: deleteDepartmentQuerySchema }), deleteDepartment);
+router.delete('/:id', departmentWriteLimiter, validateRequest({ query: deleteDepartmentQuerySchema }), deleteDepartment);
 
 export default router;

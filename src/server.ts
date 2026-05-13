@@ -8,6 +8,7 @@ import compression from 'compression';
 import pinoHttp from 'pino-http';
 import logger from './config/logger';
 import { requestIdMiddleware } from './middleware/requestId';
+import { requestTimeout } from './middleware/requestTimeout';
 import { authLimiter } from './middleware/rateLimiter';
 import authRoutes from './routes/authRoutes';
 import taskRoutes from './routes/taskRoutes';
@@ -88,7 +89,10 @@ app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 // ─── 6. Compression ───────────────────────────────────────────
 app.use(compression());
 
-// ─── 7. Routes ────────────────────────────────────────────────
+// ─── 7. Request timeout ───────────────────────────────────────
+app.use(requestTimeout);
+
+// ─── 8. Routes ────────────────────────────────────────────────
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/tasks', taskRoutes);

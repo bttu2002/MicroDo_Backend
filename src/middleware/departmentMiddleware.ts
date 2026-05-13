@@ -1,159 +1,87 @@
 import { Response, NextFunction } from 'express';
+import { DepartmentMemberRole } from '@prisma/client';
 import { AuthRequest } from './authMiddleware';
 import prisma from '../config/prisma';
 
 /**
- * Middleware: Attach Department Context
- * Looks up the Prisma Profile via mongoId and attaches department info to the request.
- * Useful as a precursor to other scoped middlewares or controllers.
+ * Resolves the caller's DepartmentMember record for the target department
+ * and attaches { departmentId, departmentRole } to req.user.
+ *
+ * Reads departmentId from req.params.departmentId, falling back to req.params.id.
+ * Must run after `protect`.
  */
 export const attachDepartmentContext = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  if (!req.user || !req.user.id) {
-    res.status(401).json({
-      success: false,
-      message: 'User not authenticated',
-    });
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Not authenticated' });
+    return;
+  }
+
+  const departmentId = (req.params['departmentId'] ?? req.params['id']) as string | undefined;
+
+  if (!departmentId) {
+    next();
     return;
   }
 
   try {
-    const profile = await prisma.profile.findUnique({
-      where: { id: req.user.prismaId },
-      select: { departmentId: true, role: true },
+    const membership = await prisma.departmentMember.findUnique({
+      where: {
+        userId_departmentId: {
+          userId: req.user.prismaId,
+          departmentId,
+        },
+      },
+      select: { role: true, status: true },
     });
 
-    if (profile) {
-      req.user.departmentId = profile.departmentId;
-      req.user.departmentRole = profile.role;
-    } else {
-      req.user.departmentId = null;
-      req.user.departmentRole = null;
+    req.user.departmentId = departmentId;
+    req.user.departmentRole =
+      membership?.status === 'ACTIVE' ? membership.role : null;
+
+    next();
+  } catch {
+    res.status(500).json({ success: false, message: 'Failed to resolve department context' });
+  }
+};
+
+// ─── Role-based guards ────────────────────────────────────────
+
+/**
+ * Requires the caller to hold one of the specified department roles.
+ * Global ADMIN bypasses all department checks.
+ * Must run after attachDepartmentContext.
+ */
+export const requireDepartmentRole = (...roles: DepartmentMemberRole[]) =>
+  (req: AuthRequest, res: Response, next: NextFunction): void => {
+    if (req.user?.role === 'ADMIN') return next();
+
+    const userRole = req.user?.departmentRole;
+    if (!userRole || !roles.includes(userRole)) {
+      res.status(403).json({
+        success: false,
+        message: `Access denied: requires one of [${roles.join(', ')}] role in this department`,
+      });
+      return;
     }
 
     next();
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to retrieve department context',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-};
+  };
 
 /**
- * Middleware: Require Department Member
- * Ensures the user belongs to the requested department in params or body.
- * Admins can bypass this check.
+ * Requires the caller to be an active member of the department (any role).
  */
-export const requireDepartmentMember = (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): void => {
-  // Admins have global access
-  if (req.user?.role === 'ADMIN' || req.user?.departmentRole === 'ADMIN') {
-    return next();
-  }
-
-  const requestedDepartmentId = req.params.departmentId || req.body.departmentId;
-
-  if (!requestedDepartmentId) {
-    res.status(400).json({
-      success: false,
-      message: 'departmentId is required to verify access',
-    });
-    return;
-  }
-
-  if (req.user?.departmentId !== requestedDepartmentId) {
-    res.status(403).json({
-      success: false,
-      message: 'Access denied: You are not a member of this department',
-    });
-    return;
-  }
-
-  next();
-};
+export const requireDepartmentAccess = requireDepartmentRole(
+  'OWNER',
+  'ADMIN',
+  'MEMBER',
+  'VIEWER'
+);
 
 /**
- * Middleware: Require Department Manager
- * Ensures the user is a DEPT_MANAGER for the requested department.
- * Admins can bypass this check.
+ * Requires the caller to hold at least ADMIN-level role (OWNER or ADMIN).
  */
-export const requireDepartmentManager = (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): void => {
-  // Admins have global access
-  if (req.user?.role === 'ADMIN' || req.user?.departmentRole === 'ADMIN') {
-    return next();
-  }
-
-  const requestedDepartmentId = req.params.departmentId || req.body.departmentId;
-
-  if (!requestedDepartmentId) {
-    res.status(400).json({
-      success: false,
-      message: 'departmentId is required to verify manager access',
-    });
-    return;
-  }
-
-  if (req.user?.departmentId !== requestedDepartmentId) {
-    res.status(403).json({
-      success: false,
-      message: 'Access denied: You do not belong to this department',
-    });
-    return;
-  }
-
-  if (req.user?.departmentRole !== 'DEPT_MANAGER') {
-    res.status(403).json({
-      success: false,
-      message: 'Access denied: Department Manager role required',
-    });
-    return;
-  }
-
-  next();
-};
-
-/**
- * Middleware: Scoped Department Access
- * A generic middleware that enforces scoping. If the user is an admin, they can access
- * anything. If they are a regular user, it forces the query/body context to their own department.
- */
-export const scopedDepartmentAccess = (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): void => {
-  if (req.user?.role === 'ADMIN' || req.user?.departmentRole === 'ADMIN') {
-    return next();
-  }
-
-  // If the user has no department, they cannot access department-scoped resources
-  if (!req.user?.departmentId) {
-    res.status(403).json({
-      success: false,
-      message: 'Access denied: You are not assigned to any department',
-    });
-    return;
-  }
-
-  // Override req.query or req.body to forcefully scope it to their department
-  if (req.method === 'GET') {
-    req.query.departmentId = req.user.departmentId;
-  } else {
-    // For POST/PATCH, force the departmentId to be their own
-    req.body.departmentId = req.user.departmentId;
-  }
-
-  next();
-};
+export const requireDepartmentAdmin = requireDepartmentRole('OWNER', 'ADMIN');

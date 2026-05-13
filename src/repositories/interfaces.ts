@@ -1,6 +1,6 @@
-import { Profile, Department, Task } from '@prisma/client';
+import { Profile, Department, Task, DepartmentMember, DepartmentInvitation, DepartmentMemberRole, MembershipStatus } from '@prisma/client';
 
-// ─── DTO Types ───────────────────────────────────────────────
+// ─── Profile DTOs ─────────────────────────────────────────────
 
 export interface CreateProfileData {
   email: string;
@@ -16,11 +16,12 @@ export interface UpdateProfileData {
   avatar?: string;
   role?: 'USER' | 'ADMIN' | 'DEPT_MANAGER' | 'DEPT_MEMBER';
   status?: 'ACTIVE' | 'BANNED';
-  departmentId?: string | null;
   passwordHash?: string;
   passwordResetToken?: string | null;
   passwordResetExpires?: Date | null;
 }
+
+// ─── Department DTOs ──────────────────────────────────────────
 
 export interface CreateDepartmentData {
   name: string;
@@ -31,6 +32,82 @@ export interface UpdateDepartmentData {
   name?: string;
   description?: string;
 }
+
+// ─── Membership DTOs ──────────────────────────────────────────
+
+export interface MemberWithProfile {
+  id: string;
+  userId: string;
+  departmentId: string;
+  role: DepartmentMemberRole;
+  status: MembershipStatus;
+  joinedAt: Date;
+  invitedBy: string | null;
+  profile: {
+    id: string;
+    email: string;
+    name: string | null;
+    avatar: string | null;
+  };
+}
+
+export interface CreateMembershipData {
+  userId: string;
+  departmentId: string;
+  role?: DepartmentMemberRole;
+  invitedBy?: string;
+  status?: MembershipStatus;
+}
+
+export interface UpdateMembershipData {
+  role?: DepartmentMemberRole;
+  status?: MembershipStatus;
+}
+
+// ─── Department Shape (with memberships) ─────────────────────
+
+export interface DepartmentWithMembers {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  memberships: MemberWithProfile[];
+  _count?: {
+    memberships: number;
+    tasks: number;
+  };
+}
+
+// ─── Invitation DTOs ─────────────────────────────────────────
+
+export interface CreateInvitationData {
+  departmentId: string;
+  email: string;
+  role: DepartmentMemberRole;
+  token: string;
+  invitedBy: string;
+  expiresAt: Date;
+}
+
+export interface InvitationWithInviter {
+  id: string;
+  departmentId: string;
+  email: string;
+  role: DepartmentMemberRole;
+  token: string;
+  invitedBy: string;
+  expiresAt: Date;
+  acceptedAt: Date | null;
+  createdAt: Date;
+  inviter: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+}
+
+// ─── Task DTOs ────────────────────────────────────────────────
 
 export interface CreateTaskData {
   title: string;
@@ -72,11 +149,11 @@ export interface TaskPaginationOptions {
 }
 
 export interface FindManyPaginatedOptions {
-  profileId: string;        // Prisma profile UUID
+  profileId: string;
   filter?: TaskFilterOptions;
   sort?: TaskSortOptions;
   pagination?: TaskPaginationOptions;
-  scopeFilter?: import('@prisma/client').Prisma.TaskWhereInput; // RBAC filter from taskQueryBuilder
+  scopeFilter?: import('@prisma/client').Prisma.TaskWhereInput;
 }
 
 export interface PaginatedTasksResult {
@@ -93,17 +170,7 @@ export interface TaskStatsResult {
   done: number;
 }
 
-// ─── Department with members (for queries that include relations) ───
-
-export interface DepartmentWithMembers extends Department {
-  members: Profile[];
-  _count?: {
-    members: number;
-    tasks: number;
-  };
-}
-
-// ─── Repository Interfaces ──────────────────────────────────
+// ─── Repository Interfaces ────────────────────────────────────
 
 export interface IProfileRepository {
   findById(id: string): Promise<Profile | null>;
@@ -114,40 +181,45 @@ export interface IProfileRepository {
 }
 
 export interface IDepartmentRepository {
-  // ── Read ──
   findById(id: string): Promise<Department | null>;
   findByName(name: string): Promise<Department | null>;
   findAll(): Promise<Department[]>;
   findWithMembers(id: string): Promise<DepartmentWithMembers | null>;
   findAllWithCount(): Promise<DepartmentWithMembers[]>;
-
-  // ── Write ──
   create(data: CreateDepartmentData): Promise<Department>;
   update(id: string, data: UpdateDepartmentData): Promise<Department>;
   delete(id: string): Promise<Department>;
+}
 
-  // ── Member management ──
-  addMember(departmentId: string, profileId: string): Promise<Profile>;
-  removeMember(profileId: string): Promise<Profile>;
-  getMemberCount(departmentId: string): Promise<number>;
-  clearAllMembers(departmentId: string): Promise<number>;
+export interface IMembershipRepository {
+  findById(id: string): Promise<DepartmentMember | null>;
+  findByUserAndDepartment(userId: string, departmentId: string): Promise<DepartmentMember | null>;
+  findActiveMembersByDepartment(departmentId: string): Promise<MemberWithProfile[]>;
+  findUserMemberships(userId: string): Promise<(DepartmentMember & { department: Department })[]>;
+  create(data: CreateMembershipData): Promise<DepartmentMember>;
+  update(id: string, data: UpdateMembershipData): Promise<DepartmentMember>;
+  delete(id: string): Promise<void>;
+  countActive(departmentId: string): Promise<number>;
+}
+
+export interface IInvitationRepository {
+  findByToken(token: string): Promise<DepartmentInvitation | null>;
+  findById(id: string): Promise<DepartmentInvitation | null>;
+  findActiveByDepartmentAndEmail(departmentId: string, email: string): Promise<DepartmentInvitation | null>;
+  findPendingByDepartment(departmentId: string): Promise<InvitationWithInviter[]>;
+  create(data: CreateInvitationData): Promise<DepartmentInvitation>;
+  markAccepted(id: string): Promise<DepartmentInvitation>;
+  delete(id: string): Promise<void>;
 }
 
 export interface ITaskRepository {
-  // ── Single record ──
   findById(id: string): Promise<Task | null>;
-  findByIdOrMongoId(id: string): Promise<Task | null>; // Hybrid: UUID or MongoId
-
-  // ── Collection ──
+  findByIdOrMongoId(id: string): Promise<Task | null>;
   findByProfile(profileId: string): Promise<Task[]>;
   findManyPaginated(options: FindManyPaginatedOptions): Promise<PaginatedTasksResult>;
-
-  // ── Write ──
   create(data: CreateTaskData): Promise<Task>;
   update(id: string, data: UpdateTaskData): Promise<Task>;
   delete(id: string): Promise<void>;
-
-  // ── Aggregation ──
   count(profileId: string): Promise<number>;
   statsByStatus(profileId: string): Promise<TaskStatsResult>;
 }

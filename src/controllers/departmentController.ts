@@ -1,261 +1,177 @@
 import { Response } from 'express';
+import { DepartmentMemberRole } from '@prisma/client';
 import { AuthRequest } from '../middleware/authMiddleware';
 import * as departmentService from '../services/departmentService';
+import * as membershipService from '../services/membershipService';
 
-/**
- * @desc    Create a new department
- * @route   POST /api/admin/departments
- * @access  Private/Admin
- */
-export const createDepartment = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
-  try {
-    const { name, description } = req.body;
+// ─── Error handler helper ─────────────────────────────────────
 
-    const department = await departmentService.createDepartment({
-      name,
-      description,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'Department created successfully',
-      data: department,
-    });
-  } catch (error) {
-    if (error instanceof departmentService.ServiceError) {
-      res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
-      return;
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+const handleError = (res: Response, error: unknown): void => {
+  if (error instanceof departmentService.ServiceError) {
+    res.status(error.statusCode).json({ success: false, message: error.message });
+    return;
   }
+  res.status(500).json({
+    success: false,
+    message: 'Server error',
+    error: error instanceof Error ? error.message : 'Unknown error',
+  });
 };
 
-/**
- * @desc    Get all departments
- * @route   GET /api/admin/departments
- * @access  Private/Admin
- */
-export const getDepartments = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
+// ─── Department CRUD (admin) ──────────────────────────────────
+
+export const createDepartment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { name, description } = req.body;
+    const department = await departmentService.createDepartment({ name, description });
+    res.status(201).json({ success: true, message: 'Department created successfully', data: department });
+  } catch (error) { handleError(res, error); }
+};
+
+export const getDepartments = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const departments = await departmentService.getDepartments();
-
-    res.status(200).json({
-      success: true,
-      count: departments.length,
-      data: departments,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+    res.status(200).json({ success: true, count: departments.length, data: departments });
+  } catch (error) { handleError(res, error); }
 };
 
-/**
- * @desc    Get a single department by ID
- * @route   GET /api/admin/departments/:id
- * @access  Private/Admin
- */
-export const getDepartmentById = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
+export const getDepartmentById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const departmentId = req.params.id as string;
+    const departmentId = req.params['id'] as string;
     const department = await departmentService.getDepartmentById(departmentId);
-
-    res.status(200).json({
-      success: true,
-      data: department,
-    });
-  } catch (error) {
-    if (error instanceof departmentService.ServiceError) {
-      res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
-      return;
-    }
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+    res.status(200).json({ success: true, data: department });
+  } catch (error) { handleError(res, error); }
 };
 
-/**
- * @desc    Update a department
- * @route   PATCH /api/admin/departments/:id
- * @access  Private/Admin
- */
-export const updateDepartment = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
+export const updateDepartment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { name, description } = req.body;
-    const departmentId = req.params.id as string;
-
-    const department = await departmentService.updateDepartment(departmentId, {
-      name,
-      description,
-    });
-
-    res.status(200).json({
-      success: true,
-      message: 'Department updated successfully',
-      data: department,
-    });
-  } catch (error) {
-    if (error instanceof departmentService.ServiceError) {
-      res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
-      return;
-    }
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+    const departmentId = req.params['id'] as string;
+    const department = await departmentService.updateDepartment(departmentId, { name, description });
+    res.status(200).json({ success: true, message: 'Department updated successfully', data: department });
+  } catch (error) { handleError(res, error); }
 };
 
-/**
- * @desc    Delete a department
- * @route   DELETE /api/admin/departments/:id
- * @access  Private/Admin
- */
-export const deleteDepartment = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
+export const deleteDepartment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const departmentId = req.params.id as string;
-    const force = req.query.force === 'true';
+    const departmentId = req.params['id'] as string;
+    const force = req.query['force'] === 'true';
     await departmentService.deleteDepartment(departmentId, force);
+    res.status(200).json({ success: true, message: 'Department deleted successfully' });
+  } catch (error) { handleError(res, error); }
+};
 
-    res.status(200).json({
-      success: true,
-      message: 'Department deleted successfully',
-    });
-  } catch (error) {
-    if (error instanceof departmentService.ServiceError) {
-      res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
+// ─── Member Management (department RBAC) ─────────────────────
+
+export const listDepartmentMembers = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const departmentId = req.params['departmentId'] as string;
+    const members = await membershipService.listMembers(departmentId);
+    res.status(200).json({ success: true, count: members.length, data: members });
+  } catch (error) { handleError(res, error); }
+};
+
+export const addDepartmentMember = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const departmentId = req.params['departmentId'] as string;
+    const actorId = req.user!.prismaId;
+    const { userId, role } = req.body as { userId?: string; role?: DepartmentMemberRole };
+
+    if (!userId) {
+      res.status(400).json({ success: false, message: 'userId is required' });
       return;
     }
 
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+    const membership = await membershipService.addMember(actorId, departmentId, userId, role);
+    res.status(201).json({ success: true, message: 'Member added successfully', data: membership });
+  } catch (error) { handleError(res, error); }
 };
 
-/**
- * @desc    Assign a user to a department
- * @route   PATCH /api/admin/users/:id/department
- * @access  Private/Admin
- */
-export const assignUserToDepartment = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
+export const removeDepartmentMember = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const mongoUserId = req.params.id as string;
-    const { departmentId } = req.body;
+    const departmentId = req.params['departmentId'] as string;
+    const targetUserId = req.params['userId'] as string;
+    const actorId = req.user!.prismaId;
+
+    await membershipService.removeMember(actorId, departmentId, targetUserId);
+    res.status(200).json({ success: true, message: 'Member removed successfully' });
+  } catch (error) { handleError(res, error); }
+};
+
+export const changeMemberRole = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const departmentId = req.params['departmentId'] as string;
+    const targetUserId = req.params['userId'] as string;
+    const actorId = req.user!.prismaId;
+    const { role } = req.body as { role?: DepartmentMemberRole };
+
+    if (!role) {
+      res.status(400).json({ success: false, message: 'role is required' });
+      return;
+    }
+
+    const membership = await membershipService.changeRole(actorId, departmentId, targetUserId, role);
+    res.status(200).json({ success: true, message: 'Role updated successfully', data: membership });
+  } catch (error) { handleError(res, error); }
+};
+
+export const transferOwnership = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const departmentId = req.params['departmentId'] as string;
+    const actorId = req.user!.prismaId;
+    const { newOwnerId } = req.body as { newOwnerId?: string };
+
+    if (!newOwnerId) {
+      res.status(400).json({ success: false, message: 'newOwnerId is required' });
+      return;
+    }
+
+    await membershipService.transferOwnership(actorId, departmentId, newOwnerId);
+    res.status(200).json({ success: true, message: 'Ownership transferred successfully' });
+  } catch (error) { handleError(res, error); }
+};
+
+// ─── Admin-level member assignment ───────────────────────────
+
+export const assignUserToDepartment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const targetUserId = req.params['id'] as string;
+    const { departmentId, role } = req.body as {
+      departmentId?: string;
+      role?: DepartmentMemberRole;
+    };
 
     if (!departmentId) {
-      res.status(400).json({
-        success: false,
-        message: 'departmentId is required in the request body',
-      });
+      res.status(400).json({ success: false, message: 'departmentId is required' });
       return;
     }
 
-    const profile = await departmentService.assignUserToDepartment(
-      mongoUserId,
-      departmentId
+    const membership = await membershipService.adminAddMember(
+      targetUserId,
+      departmentId,
+      role,
+      req.user!.prismaId
     );
 
     res.status(200).json({
       success: true,
       message: 'User successfully assigned to department',
-      data: profile,
+      data: membership,
     });
-  } catch (error) {
-    if (error instanceof departmentService.ServiceError) {
-      res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
-      return;
-    }
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+  } catch (error) { handleError(res, error); }
 };
 
-/**
- * @desc    Remove a user from their department
- * @route   DELETE /api/admin/users/:id/department
- * @access  Private/Admin
- */
-export const removeUserFromDepartment = async (
-  req: AuthRequest,
-  res: Response
-): Promise<void> => {
+export const removeUserFromDepartment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const mongoUserId = req.params.id as string;
+    const targetUserId = req.params['id'] as string;
+    const { departmentId } = req.body as { departmentId?: string };
 
-    const profile = await departmentService.removeUserFromDepartment(mongoUserId);
-
-    res.status(200).json({
-      success: true,
-      message: 'User successfully removed from department',
-      data: profile,
-    });
-  } catch (error) {
-    if (error instanceof departmentService.ServiceError) {
-      res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
+    if (!departmentId) {
+      res.status(400).json({ success: false, message: 'departmentId is required' });
       return;
     }
 
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+    await membershipService.removeMember(req.user!.prismaId, departmentId, targetUserId);
+    res.status(200).json({ success: true, message: 'User successfully removed from department' });
+  } catch (error) { handleError(res, error); }
 };

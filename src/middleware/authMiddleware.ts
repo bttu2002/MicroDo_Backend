@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Role } from '@prisma/client';
+import { Role, DepartmentMemberRole } from '@prisma/client';
 import { verifyToken } from '../utils/jwt';
 import prisma from '../config/prisma';
 
@@ -12,7 +12,7 @@ export interface AuthRequest extends Request {
     role: Role;        // source of truth is now Prisma Profile
     // --- Department context, populated by attachDepartmentContext middleware ---
     departmentId?: string | null;
-    departmentRole?: string | null;
+    departmentRole?: DepartmentMemberRole | null;
   };
 }
 

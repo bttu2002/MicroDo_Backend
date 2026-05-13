@@ -9,6 +9,41 @@ export interface SocketUser {
   role: string;
 }
 
+// ─── Socket join rate limiter ─────────────────────────────────
+
+interface JoinCounter {
+  count: number;
+  resetAt: number;
+}
+
+const SOCKET_JOIN_MAX = 10;
+const SOCKET_JOIN_WINDOW_MS = 30_000; // 30 seconds
+
+// Map key: `${socketId}:task` or `${socketId}:dept`
+const socketJoinCounters = new Map<string, JoinCounter>();
+
+function checkJoinRateLimit(key: string): boolean {
+  const now = Date.now();
+  const counter = socketJoinCounters.get(key);
+
+  if (counter == null || now >= counter.resetAt) {
+    socketJoinCounters.set(key, { count: 1, resetAt: now + SOCKET_JOIN_WINDOW_MS });
+    return true;
+  }
+
+  if (counter.count >= SOCKET_JOIN_MAX) return false;
+
+  counter.count++;
+  return true;
+}
+
+function cleanupSocketCounters(socketId: string): void {
+  socketJoinCounters.delete(`${socketId}:task`);
+  socketJoinCounters.delete(`${socketId}:dept`);
+}
+
+// ─────────────────────────────────────────────────────────────
+
 let io: SocketServer | null = null;
 
 export function initSocket(httpServer: HttpServer): SocketServer {
@@ -80,8 +115,16 @@ export function initSocket(httpServer: HttpServer): SocketServer {
     // Auto-join personal room
     void socket.join(`user:${user.prismaId}`);
 
-    // ─── Join task room (with permission check) ───────────────
+    // ─── Join task room ───────────────────────────────────────
     socket.on('join:task', async (taskId: string) => {
+      if (!checkJoinRateLimit(`${socket.id}:task`)) {
+        socket.emit('error', {
+          code: 'SOCKET_RATE_LIMIT',
+          message: 'Too many room join attempts',
+        });
+        return;
+      }
+
       try {
         if (typeof taskId !== 'string' || !taskId.trim()) return;
 
@@ -92,19 +135,16 @@ export function initSocket(httpServer: HttpServer): SocketServer {
 
         if (!task) return;
 
-        // Global admin: always allowed
         if (user.role === 'ADMIN') {
           void socket.join(`task:${taskId}`);
           return;
         }
 
-        // Task owner: always allowed
         if (task.profileId === user.prismaId) {
           void socket.join(`task:${taskId}`);
           return;
         }
 
-        // Department member: must have active membership
         if (task.departmentId) {
           const membership = await prisma.departmentMember.findUnique({
             where: {
@@ -125,8 +165,16 @@ export function initSocket(httpServer: HttpServer): SocketServer {
       }
     });
 
-    // ─── Join department room (with membership check) ─────────
+    // ─── Join department room ─────────────────────────────────
     socket.on('join:department', async (departmentId: string) => {
+      if (!checkJoinRateLimit(`${socket.id}:dept`)) {
+        socket.emit('error', {
+          code: 'SOCKET_RATE_LIMIT',
+          message: 'Too many room join attempts',
+        });
+        return;
+      }
+
       try {
         if (typeof departmentId !== 'string' || !departmentId.trim()) return;
 
@@ -154,6 +202,7 @@ export function initSocket(httpServer: HttpServer): SocketServer {
     });
 
     socket.on('disconnect', (reason: string) => {
+      cleanupSocketCounters(socket.id);
       logger.info({ userId: user.prismaId, reason }, 'Socket disconnected');
     });
   });

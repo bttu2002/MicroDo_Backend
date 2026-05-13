@@ -1,11 +1,14 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
 import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import pinoHttp from 'pino-http';
 import logger from './config/logger';
 import { requestIdMiddleware } from './middleware/requestId';
+import { authLimiter } from './middleware/rateLimiter';
 import authRoutes from './routes/authRoutes';
 import taskRoutes from './routes/taskRoutes';
 import userRoutes from './routes/userRoutes';
@@ -18,16 +21,26 @@ import notificationRoutes from './routes/notificationRoutes';
 import { protect, AuthRequest } from './middleware/authMiddleware';
 import { initSocket } from './socket/index';
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ─── Observability (must be first) ───────────────────────────
+// ─── Trust proxy (must be before rate limiters) ───────────────
+// Set to 1 when running behind a single reverse proxy (nginx, etc.)
+// Remove or set to false if running without a proxy
+app.set('trust proxy', 1);
+
+// ─── 1. Request ID (very first — stamps every response) ──────
 app.use(requestIdMiddleware);
 
-// ─── Security / CORS ─────────────────────────────────────────
+// ─── 2. Security headers ──────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: false,                        // API server — no HTML to protect
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow cross-origin API calls
+}));
+
+// ─── 3. CORS ──────────────────────────────────────────────────
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.FRONTEND_URL,
@@ -36,7 +49,7 @@ const allowedOrigins = [
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -45,9 +58,10 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['x-request-id'],
 }));
 
-// ─── Request logging ─────────────────────────────────────────
+// ─── 4. Request logging ───────────────────────────────────────
 app.use(pinoHttp({
   logger,
   genReqId: (req: IncomingMessage) =>
@@ -73,11 +87,15 @@ app.use(pinoHttp({
   },
 }));
 
-// ─── Body parsing ─────────────────────────────────────────────
-app.use(express.json());
+// ─── 5. Body parsing ──────────────────────────────────────────
+app.use(express.json({ limit: '50kb' }));
+app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
-// ─── Routes ───────────────────────────────────────────────────
-app.use('/api/auth', authRoutes);
+// ─── 6. Compression ───────────────────────────────────────────
+app.use(compression());
+
+// ─── 7. Routes ────────────────────────────────────────────────
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/admin', adminRoutes);
@@ -92,13 +110,26 @@ app.get('/api/protected', protect, (req: AuthRequest, res: Response) => {
   res.json({ success: true, message: 'You have access to this protected route', data: { user: req.user } });
 });
 
-// Health check
+// Health checks — excluded from rate limiting and logging noise
 app.get('/', (_req: Request, res: Response) => {
   res.json({ message: 'Welcome to MicroDo Backend API', status: 'online', version: '1.0.0' });
 });
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// ─── 8. Global error handler ──────────────────────────────────
+// Catches any unhandled errors passed via next(err)
+// Must have 4 params so Express recognises it as an error handler
+app.use((err: Error, req: Request, res: Response, _next: NextFunction): void => {
+  if (res.headersSent) return;
+  logger.error({ err, requestId: req.requestId }, 'Unhandled error');
+  res.status(500).json({
+    success: false,
+    code: 'INTERNAL_ERROR',
+    message: 'An unexpected error occurred',
+  });
 });
 
 // ─── HTTP Server + Socket.IO ──────────────────────────────────

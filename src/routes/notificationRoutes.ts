@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
+import { notificationLimiter } from '../middleware/rateLimiter';
 import {
   getNotifications,
   getUnreadCount,
@@ -9,7 +10,9 @@ import {
 
 const router = Router();
 
+// protect runs first → then user-based rate limiter → then route handlers
 router.use(protect);
+router.use(notificationLimiter);
 
 // IMPORTANT: read-all must be defined BEFORE /:id/read
 // to prevent "read-all" being matched as :id

@@ -1,4 +1,4 @@
-import { Profile, Department, Task, DepartmentMember, DepartmentInvitation, DepartmentMemberRole, MembershipStatus } from '@prisma/client';
+import { Profile, Department, Task, DepartmentMember, DepartmentInvitation, DepartmentMemberRole, MembershipStatus, Comment, Notification, NotificationType } from '@prisma/client';
 
 // ─── Profile DTOs ─────────────────────────────────────────────
 
@@ -107,6 +107,68 @@ export interface InvitationWithInviter {
   };
 }
 
+// ─── Comment DTOs ─────────────────────────────────────────────
+
+export interface CreateCommentData {
+  taskId: string;
+  authorId: string;
+  content: string;
+  parentId?: string;
+}
+
+export interface UpdateCommentData {
+  content: string;
+}
+
+export interface CommentAuthor {
+  id: string;
+  name: string | null;
+  username: string | null;
+  avatar: string | null;
+}
+
+export interface CommentWithAuthor {
+  id: string;
+  taskId: string;
+  authorId: string;
+  content: string;
+  parentId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  author: CommentAuthor;
+  replies?: CommentWithAuthor[];
+}
+
+export interface ICommentRepository {
+  findById(id: string): Promise<Comment | null>;
+  findByTask(taskId: string, page: number, limit: number): Promise<{ comments: CommentWithAuthor[]; total: number }>;
+  findParentById(id: string): Promise<Comment | null>;
+  create(data: CreateCommentData): Promise<Comment>;
+  update(id: string, data: UpdateCommentData): Promise<Comment>;
+  softDelete(id: string): Promise<Comment>;
+}
+
+// ─── Notification DTOs ────────────────────────────────────────
+
+export interface CreateNotificationData {
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  payload?: Record<string, unknown>;
+  entityType?: string;
+  entityId?: string;
+}
+
+export interface INotificationRepository {
+  findByUser(userId: string, page: number, limit: number, unreadOnly?: boolean): Promise<{ notifications: Notification[]; total: number }>;
+  countUnread(userId: string): Promise<number>;
+  create(data: CreateNotificationData): Promise<Notification>;
+  markRead(id: string, userId: string): Promise<Notification | null>;
+  markAllRead(userId: string): Promise<number>;
+}
+
 // ─── Task DTOs ────────────────────────────────────────────────
 
 export interface CreateTaskData {
@@ -176,6 +238,7 @@ export interface IProfileRepository {
   findById(id: string): Promise<Profile | null>;
   findByEmail(email: string): Promise<Profile | null>;
   findByMongoId(mongoId: string): Promise<Profile | null>;
+  findByUsername(username: string): Promise<Profile | null>;
   create(data: CreateProfileData): Promise<Profile>;
   update(id: string, data: UpdateProfileData): Promise<Profile>;
 }

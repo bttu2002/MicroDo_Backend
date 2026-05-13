@@ -19,6 +19,10 @@ export class PrismaProfileRepository implements IProfileRepository {
     return prisma.profile.findUnique({ where: { mongoId } });
   }
 
+  async findByUsername(username: string): Promise<Profile | null> {
+    return prisma.profile.findUnique({ where: { username } });
+  }
+
   async create(data: CreateProfileData): Promise<Profile> {
     return prisma.profile.create({ data });
   }

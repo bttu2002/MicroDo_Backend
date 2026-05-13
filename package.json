@@ -35,7 +35,9 @@
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.4",
     "pg": "^8.20.0",
-    "typescript": "^6.0.2"
+    "socket.io": "^4.8.3",
+    "typescript": "^6.0.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/pg": "^8.20.0",

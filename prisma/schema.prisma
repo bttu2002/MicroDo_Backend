@@ -34,6 +34,16 @@ enum TaskPriority {
   high
 }
 
+// ─── Notification Enum ───────────────────────────────────────
+
+enum NotificationType {
+  TASK_ASSIGNED
+  COMMENT_ADDED
+  MENTIONED_IN_COMMENT
+  TASK_UPDATED
+  DEADLINE_SOON
+}
+
 // ─── Department/RBAC Enums ───────────────────────────────────
 
 enum DepartmentMemberRole {
@@ -62,10 +72,13 @@ model Profile {
   passwordResetToken   String?
   passwordResetExpires DateTime?
   mongoId              String?   @unique
+  username             String?   @unique
   tasks                Task[]
   memberships          DepartmentMember[]    @relation("MemberProfile")
   invitedMemberships   DepartmentMember[]    @relation("InviterProfile")
   sentInvitations      DepartmentInvitation[] @relation("InviterInvitation")
+  comments             Comment[]
+  notifications        Notification[]
   activityLogs         ActivityLog[]
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -162,6 +175,7 @@ model Task {
   profile      Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
   departmentId String?
   department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  comments     Comment[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -173,4 +187,46 @@ model Task {
   @@index([profileId, status])
   @@index([departmentId, status])
   @@map("tasks")
+}
+
+model Comment {
+  id        String    @id @default(uuid())
+  taskId    String
+  authorId  String
+  content   String
+  parentId  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  task    Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author  Profile  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([taskId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("comments")
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  userId     String
+  type       NotificationType
+  title      String
+  message    String
+  payload    Json?
+  entityType String?
+  entityId   String?
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([readAt])
+  @@index([createdAt])
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
 }

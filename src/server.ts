@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes';
@@ -8,7 +9,10 @@ import adminRoutes from './routes/adminRoutes';
 import departmentRoutes from './routes/departmentRoutes';
 import membershipRoutes from './routes/membershipRoutes';
 import invitationRoutes from './routes/invitationRoutes';
+import commentRoutes from './routes/commentRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 import { protect, AuthRequest } from './middleware/authMiddleware';
+import { initSocket } from './socket/index';
 
 // Load environment variables
 dotenv.config();
@@ -16,7 +20,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware
+// ─── Middleware ───────────────────────────────────────────────
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.FRONTEND_URL,
@@ -24,7 +28,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
       callback(null, true);
@@ -33,12 +36,12 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
 
-// Routes
+// ─── Routes ───────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/tasks', taskRoutes);
@@ -46,36 +49,28 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/admin/departments', departmentRoutes);
 app.use('/api/departments', membershipRoutes);
 app.use('/api/invitations', invitationRoutes);
+app.use('/api', commentRoutes);
+app.use('/api/notifications', notificationRoutes);
 
-// Protected test route (to verify auth middleware)
+// Protected test route
 app.get('/api/protected', protect, (req: AuthRequest, res: Response) => {
-  res.json({
-    success: true,
-    message: 'You have access to this protected route',
-    data: {
-      user: req.user,
-    },
-  });
+  res.json({ success: true, message: 'You have access to this protected route', data: { user: req.user } });
 });
 
-// Health check route
+// Health check
 app.get('/', (req: Request, res: Response) => {
-  res.json({
-    message: 'Welcome to MicroDo Backend API',
-    status: 'online',
-    version: '1.0.0',
-  });
+  res.json({ message: 'Welcome to MicroDo Backend API', status: 'online', version: '1.0.0' });
 });
 
 app.get('/health', (req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Start server
-app.listen(port, () => {
+// ─── HTTP Server + Socket.IO ──────────────────────────────────
+const httpServer = createServer(app);
+initSocket(httpServer);
+
+httpServer.listen(port, () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);
 });
 

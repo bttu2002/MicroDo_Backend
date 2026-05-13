@@ -1,5 +1,7 @@
 import { Task, Profile } from '@prisma/client';
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
+import { resolveTaskPermission, TaskPermissionError } from '../utils/taskPermissions';
+import * as realtimeService from './realtimeService';
 import {
   ITaskRepository,
   IProfileRepository,
@@ -92,38 +94,13 @@ export class TaskService {
     profile: Profile,
     level: 'read' | 'write' | 'delete'
   ): Promise<void> {
-    if (profile.role === 'ADMIN') return;
-
-    if (task.departmentId) {
-      const membership = await this.membershipRepo.findByUserAndDepartment(
-        profileId,
-        task.departmentId
-      );
-
-      if (!membership || membership.status !== 'ACTIVE') {
-        if (task.profileId !== profileId) {
-          throw new TaskServiceError('Not authorized to access this task', 403);
-        }
-        return;
+    try {
+      await resolveTaskPermission(task, profileId, profile, level, this.membershipRepo);
+    } catch (err) {
+      if (err instanceof TaskPermissionError) {
+        throw new TaskServiceError(err.message, err.statusCode);
       }
-
-      if (level !== 'read' && membership.role === 'VIEWER') {
-        throw new TaskServiceError('VIEWER cannot modify tasks', 403);
-      }
-
-      if (
-        level !== 'read' &&
-        membership.role === 'MEMBER' &&
-        task.profileId !== profileId
-      ) {
-        throw new TaskServiceError('MEMBER can only modify their own tasks', 403);
-      }
-
-      return; // ADMIN/OWNER: full access
-    }
-
-    if (task.profileId !== profileId) {
-      throw new TaskServiceError('Not authorized to access this task', 403);
+      throw err;
     }
   }
 
@@ -262,6 +239,14 @@ export class TaskService {
     if (input.deadline    !== undefined) data.deadline    = input.deadline;
 
     const updated = await this.taskRepo.update(task.id, data);
+
+    // Emit realtime to all subscribers of this task room
+    realtimeService.emitTaskUpdated(task.id, {
+      taskId: task.id,
+      departmentId: task.departmentId,
+      updatedFields: Object.keys(data),
+      updatedAt: updated.updatedAt,
+    });
 
     return mapPrismaTaskToResponseDTO({ ...updated, profile });
   }

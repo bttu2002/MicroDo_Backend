@@ -1,4 +1,5 @@
 import { getIO } from '../socket/index';
+import logger from '../config/logger';
 
 // ─── Comment events ───────────────────────────────────────────
 
@@ -28,24 +29,24 @@ export interface CommentUpdatedPayload {
 export function emitCommentCreated(taskId: string, payload: CommentPayload): void {
   try {
     getIO().to(`task:${taskId}`).emit('comment:created', payload);
-  } catch {
-    // Socket not initialized or emit failed — non-fatal
+  } catch (err) {
+    logger.warn({ err }, 'emitCommentCreated failed');
   }
 }
 
 export function emitCommentUpdated(taskId: string, payload: CommentUpdatedPayload): void {
   try {
     getIO().to(`task:${taskId}`).emit('comment:updated', payload);
-  } catch {
-    // non-fatal
+  } catch (err) {
+    logger.warn({ err }, 'emitCommentUpdated failed');
   }
 }
 
 export function emitCommentDeleted(taskId: string, payload: CommentDeletedPayload): void {
   try {
     getIO().to(`task:${taskId}`).emit('comment:deleted', payload);
-  } catch {
-    // non-fatal
+  } catch (err) {
+    logger.warn({ err }, 'emitCommentDeleted failed');
   }
 }
 
@@ -65,8 +66,8 @@ export interface NotificationPayload {
 export function emitNotification(userId: string, payload: NotificationPayload): void {
   try {
     getIO().to(`user:${userId}`).emit('notification:new', payload);
-  } catch {
-    // non-fatal
+  } catch (err) {
+    logger.warn({ err }, 'emitNotification failed');
   }
 }
 
@@ -82,7 +83,7 @@ export interface TaskUpdatedPayload {
 export function emitTaskUpdated(taskId: string, payload: TaskUpdatedPayload): void {
   try {
     getIO().to(`task:${taskId}`).emit('task:updated', payload);
-  } catch {
-    // non-fatal
+  } catch (err) {
+    logger.warn({ err }, 'emitTaskUpdated failed');
   }
 }

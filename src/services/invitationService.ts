@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { DepartmentInvitation, DepartmentMember, DepartmentMemberRole } from '@prisma/client';
+import prisma from '../config/prisma';
 import { PrismaInvitationRepository } from '../repositories/prisma/invitationRepository';
 import { PrismaMembershipRepository } from '../repositories/prisma/membershipRepository';
 import { PrismaDepartmentRepository } from '../repositories/prisma/departmentRepository';
@@ -7,6 +8,7 @@ import { PrismaProfileRepository } from '../repositories/prisma/profileRepositor
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
 import { InvitationWithInviter } from '../repositories/interfaces';
 import { ServiceError } from './departmentService';
+import { mapPrismaConflict } from '../utils/prismaError';
 import sendEmail from '../utils/email';
 
 const EXPIRY_DAYS = 7;
@@ -139,22 +141,37 @@ export const acceptInvitation = async (
     throw new ServiceError('You are already an active member of this department', 409);
   }
 
-  let membership: DepartmentMember;
-  if (existingMembership) {
-    membership = await membershipRepo.update(existingMembership.id, {
-      role: invitation.role,
-      status: 'ACTIVE',
-    });
-  } else {
-    membership = await membershipRepo.create({
-      userId,
-      departmentId: invitation.departmentId,
-      role: invitation.role,
-      invitedBy: invitation.invitedBy,
-    });
-  }
+  const membership = await prisma.$transaction(async (tx) => {
+    const inv = await tx.departmentInvitation.findUnique({ where: { id: invitation.id } });
+    if (!inv || inv.acceptedAt !== null) {
+      throw new ServiceError('This invitation has already been accepted', 409);
+    }
 
-  await invitationRepo.markAccepted(invitation.id);
+    let mem: DepartmentMember;
+    if (existingMembership) {
+      mem = await tx.departmentMember.update({
+        where: { id: existingMembership.id },
+        data: { role: invitation.role, status: 'ACTIVE' },
+      });
+    } else {
+      mem = await tx.departmentMember.create({
+        data: {
+          userId,
+          departmentId: invitation.departmentId,
+          role: invitation.role,
+          invitedBy: invitation.invitedBy,
+        },
+      });
+    }
+
+    await tx.departmentInvitation.update({
+      where: { id: invitation.id },
+      data: { acceptedAt: new Date() },
+    });
+
+    return mem;
+  }).catch((err: unknown) => mapPrismaConflict(err, 'This invitation has already been accepted'));
+
   void activityLogRepo.create({
     actorUserId: userId,
     departmentId: invitation.departmentId,

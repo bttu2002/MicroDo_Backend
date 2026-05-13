@@ -6,6 +6,7 @@ import { PrismaProfileRepository } from '../repositories/prisma/profileRepositor
 import { PrismaActivityLogRepository } from '../repositories/prisma/activityLogRepository';
 import { MemberWithProfile } from '../repositories/interfaces';
 import { ServiceError } from './departmentService';
+import { mapPrismaConflict } from '../utils/prismaError';
 
 const membershipRepo = new PrismaMembershipRepository();
 const departmentRepo = new PrismaDepartmentRepository();
@@ -73,24 +74,24 @@ export const addMember = async (
   const targetProfile = await profileRepo.findById(targetUserId);
   if (!targetProfile) throw new ServiceError('User not found', 404);
 
-  const existing = await membershipRepo.findByUserAndDepartment(targetUserId, departmentId);
-  if (existing) {
-    if (existing.status === 'ACTIVE') {
-      throw new ServiceError('User is already an active member of this department', 409);
-    }
-    const reactivated = await membershipRepo.update(existing.id, { role, status: 'ACTIVE' });
-    void activityLogRepo.create({
-      actorUserId: actorId,
-      departmentId,
-      entityType: 'membership',
-      entityId: reactivated.id,
-      action: 'member.added',
-      metadata: { targetUserId, role },
+  const membership = await prisma.$transaction(async (tx) => {
+    const existing = await tx.departmentMember.findUnique({
+      where: { userId_departmentId: { userId: targetUserId, departmentId } },
     });
-    return reactivated;
-  }
+    if (existing) {
+      if (existing.status === 'ACTIVE') {
+        throw new ServiceError('User is already an active member of this department', 409);
+      }
+      return tx.departmentMember.update({
+        where: { id: existing.id },
+        data: { role, status: 'ACTIVE' },
+      });
+    }
+    return tx.departmentMember.create({
+      data: { userId: targetUserId, departmentId, role, invitedBy: actorId },
+    });
+  }).catch((err: unknown) => mapPrismaConflict(err, 'User is already an active member of this department'));
 
-  const membership = await membershipRepo.create({ userId: targetUserId, departmentId, role, invitedBy: actorId });
   void activityLogRepo.create({
     actorUserId: actorId,
     departmentId,

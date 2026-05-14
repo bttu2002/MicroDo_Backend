@@ -290,6 +290,7 @@ export interface IDepartmentRepository {
 export interface IMembershipRepository {
   findById(id: string): Promise<DepartmentMember | null>;
   findByUserAndDepartment(userId: string, departmentId: string): Promise<DepartmentMember | null>;
+  getActiveMemberRole(userId: string, departmentId: string): Promise<DepartmentMemberRole | null>;
   findActiveMembersByDepartment(departmentId: string, page: number, limit: number): Promise<PaginatedMembersResult>;
   findUserMemberships(userId: string): Promise<(DepartmentMember & { department: Department })[]>;
   create(data: CreateMembershipData): Promise<DepartmentMember>;

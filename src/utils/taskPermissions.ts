@@ -25,27 +25,20 @@ export async function resolveTaskPermission(
   if (profile.role === 'ADMIN') return;
 
   if (task.departmentId) {
-    const membership = await membershipRepo.findByUserAndDepartment(
-      profileId,
-      task.departmentId
-    );
+    const role = await membershipRepo.getActiveMemberRole(profileId, task.departmentId);
 
-    if (!membership || membership.status !== 'ACTIVE') {
+    if (!role) {
       if (task.profileId !== profileId) {
         throw new TaskPermissionError('Not authorized to access this task', 403);
       }
       return;
     }
 
-    if (level !== 'read' && membership.role === 'VIEWER') {
+    if (level !== 'read' && role === 'VIEWER') {
       throw new TaskPermissionError('VIEWER cannot modify tasks', 403);
     }
 
-    if (
-      level !== 'read' &&
-      membership.role === 'MEMBER' &&
-      task.profileId !== profileId
-    ) {
+    if (level !== 'read' && role === 'MEMBER' && task.profileId !== profileId) {
       throw new TaskPermissionError('MEMBER can only modify their own tasks', 403);
     }
 

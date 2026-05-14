@@ -23,6 +23,17 @@ export class PrismaMembershipRepository implements IMembershipRepository {
     });
   }
 
+  async getActiveMemberRole(
+    userId: string,
+    departmentId: string
+  ): Promise<import('@prisma/client').DepartmentMemberRole | null> {
+    const row = await prisma.departmentMember.findFirst({
+      where: { userId, departmentId, status: 'ACTIVE' },
+      select: { role: true },
+    });
+    return row?.role ?? null;
+  }
+
   async findActiveMembersByDepartment(
     departmentId: string,
     page: number,

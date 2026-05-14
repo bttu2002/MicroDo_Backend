@@ -3,7 +3,7 @@ import { protect } from '../middleware/authMiddleware';
 import { analyticsLimiter } from '../middleware/rateLimiter';
 import { validateRequest } from '../middleware/validateRequest';
 import { dateRangeQuerySchema, departmentIdParamSchema, departmentListQuerySchema } from '../schemas/analyticsSchemas';
-import { getSummary, getCompletion, getDeptSummary, getDeptCompletion, getTrends, getTime } from '../controllers/analyticsController';
+import { getSummary, getCompletion, getDeptSummary, getDeptCompletion, getTrends, getTime, getHeatmap } from '../controllers/analyticsController';
 
 const router = Router();
 
@@ -14,6 +14,7 @@ router.get('/summary',    analyticsLimiter, getSummary);
 router.get('/completion', analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getCompletion);
 router.get('/trends',     analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getTrends);
 router.get('/time',       analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getTime);
+router.get('/heatmap',    analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getHeatmap);
 router.get('/departments/:departmentId/summary',
   analyticsLimiter,
   validateRequest({ params: departmentIdParamSchema }),

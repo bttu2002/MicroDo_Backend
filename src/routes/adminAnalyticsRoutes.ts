@@ -11,6 +11,7 @@ import {
   getAdminDeptSummaryHandler,
   getAdminTrendsHandler,
   getAdminTimeHandler,
+  getAdminHeatmapHandler,
 } from '../controllers/analyticsController';
 
 const router = Router();
@@ -23,6 +24,7 @@ router.get('/summary',    analyticsLimiter, getAdminSummary);
 router.get('/completion', analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminCompletion);
 router.get('/trends',     analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminTrendsHandler);
 router.get('/time',       analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminTimeHandler);
+router.get('/heatmap',    analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminHeatmapHandler);
 router.get('/departments',
   analyticsLimiter,
   validateRequest({ query: departmentListQuerySchema }),

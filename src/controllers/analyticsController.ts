@@ -126,6 +126,31 @@ export const getAdminTrendsHandler = async (req: AuthRequest, res: Response): Pr
   }
 };
 
+// GET /api/analytics/heatmap?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+export const getHeatmap = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { startDate, endDate } = res.locals.validated.query as DateRangeQuery;
+    const profileId = req.user!.prismaId;
+    const data = await analyticsService.getUserHeatmap(profileId, startDate, endDate);
+    res.status(200).json({ success: true, data: { timezone: 'UTC', ...data } });
+  } catch (error) {
+    logger.error({ err: error, requestId: req.requestId }, 'getHeatmap failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+// GET /api/admin/analytics/heatmap?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+export const getAdminHeatmapHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { startDate, endDate } = res.locals.validated.query as DateRangeQuery;
+    const data = await analyticsService.getAdminHeatmap(startDate, endDate);
+    res.status(200).json({ success: true, data: { timezone: 'UTC', ...data } });
+  } catch (error) {
+    logger.error({ err: error, requestId: req.requestId }, 'getAdminHeatmap failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 // GET /api/analytics/time?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 export const getTime = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

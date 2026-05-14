@@ -44,5 +44,6 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "Node16",
     "resolveJsonModule": true
-  }
+  },
+  "include": ["src/**/*"]
 }

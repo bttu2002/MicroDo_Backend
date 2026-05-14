@@ -604,6 +604,171 @@ export async function getAdminTimeStats(
   };
 }
 
+// ─── Heatmap interfaces ───────────────────────────────────────
+
+interface HeatmapRow {
+  day_of_week: number;
+  hour:        number;
+  count:       number;
+}
+
+export interface HeatmapBucket {
+  dayOfWeek:  number;
+  hour:       number;
+  created:    number;
+  completed:  number;
+  /** Derived field: total = created + completed */
+  total:      number;
+}
+
+export interface HeatmapSummary {
+  peakDayOfWeek:  number | null;
+  peakHour:       number | null;
+  totalCreated:   number;
+  totalCompleted: number;
+}
+
+export interface UserHeatmapData {
+  period:  { startDate: string; endDate: string };
+  heatmap: readonly HeatmapBucket[];
+  summary: HeatmapSummary;
+}
+
+export interface AdminHeatmapData {
+  period:  { startDate: string; endDate: string };
+  heatmap: readonly HeatmapBucket[];
+  summary: HeatmapSummary;
+}
+
+// ─── Heatmap helpers ──────────────────────────────────────────
+
+// Zero-fill is the source of truth for ordering and length.
+// Iterates dayOfWeek 0..6, hour 0..23 → always exactly 168 entries, stable order.
+// DB sparse results populate counts only — never determine array order.
+// Heatmap buckets are computed in UTC, not user-local timezone.
+function buildHeatmap(
+  createdRows:   HeatmapRow[],
+  completedRows: HeatmapRow[],
+): readonly HeatmapBucket[] {
+  const createdMap   = new Map<string, number>();
+  const completedMap = new Map<string, number>();
+
+  for (const r of createdRows)   createdMap.set(`${r.day_of_week}:${r.hour}`,   r.count);
+  for (const r of completedRows) completedMap.set(`${r.day_of_week}:${r.hour}`, r.count);
+
+  const heatmap: HeatmapBucket[] = [];
+  for (let d = 0; d <= 6; d++) {
+    for (let h = 0; h <= 23; h++) {
+      const key       = `${d}:${h}`;
+      const created   = createdMap.get(key)   ?? 0;
+      const completed = completedMap.get(key) ?? 0;
+      heatmap.push(Object.freeze({
+        dayOfWeek: d,
+        hour:      h,
+        created,
+        completed,
+        total: created + completed,
+      }));
+    }
+  }
+  return Object.freeze(heatmap);
+}
+
+// Peak bucket = highest total (created + completed).
+// Tie-break: first occurrence wins per iteration order (dayOfWeek ASC → hour ASC).
+// If entire heatmap is zero, peak fields are null — never defaulted to 0:00.
+function calculateSummary(heatmap: readonly HeatmapBucket[]): HeatmapSummary {
+  let totalCreated   = 0;
+  let totalCompleted = 0;
+  let peakTotal      = 0;
+  let peakDayOfWeek: number | null = null;
+  let peakHour:      number | null = null;
+
+  for (const b of heatmap) {
+    totalCreated   += b.created;
+    totalCompleted += b.completed;
+    // Strict > preserves tie-break: first-seen (lowest dayOfWeek then hour) wins
+    if (b.total > peakTotal) {
+      peakTotal     = b.total;
+      peakDayOfWeek = b.dayOfWeek;
+      peakHour      = b.hour;
+    }
+  }
+
+  return { peakDayOfWeek, peakHour, totalCreated, totalCompleted };
+}
+
+// ─── Heatmap functions ────────────────────────────────────────
+
+export async function getUserHeatmap(
+  profileId: string,
+  startDate: string,
+  endDate:   string,
+): Promise<UserHeatmapData> {
+  const { start, end } = toUTCDateRange(startDate, endDate);
+
+  // Heatmap buckets are computed in UTC, not user-local timezone
+  const [createdRows, completedRows] = await Promise.all([
+    prisma.$queryRaw<HeatmapRow[]>`
+      SELECT EXTRACT(DOW  FROM "createdAt")::int AS day_of_week,
+             EXTRACT(HOUR FROM "createdAt")::int AS hour,
+             COUNT(*)::int                        AS count
+      FROM "tasks"
+      WHERE "profileId" = ${profileId}
+        AND "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+      GROUP BY day_of_week, hour
+    `,
+    prisma.$queryRaw<HeatmapRow[]>`
+      SELECT EXTRACT(DOW  FROM "completedAt")::int AS day_of_week,
+             EXTRACT(HOUR FROM "completedAt")::int AS hour,
+             COUNT(*)::int                          AS count
+      FROM "tasks"
+      WHERE "profileId" = ${profileId}
+        AND "completedAt" IS NOT NULL
+        AND "completedAt" >= ${start}
+        AND "completedAt" <= ${end}
+      GROUP BY day_of_week, hour
+    `,
+  ]);
+
+  const heatmap = buildHeatmap(createdRows, completedRows);
+  return { period: { startDate, endDate }, heatmap, summary: calculateSummary(heatmap) };
+}
+
+export async function getAdminHeatmap(
+  startDate: string,
+  endDate:   string,
+): Promise<AdminHeatmapData> {
+  const { start, end } = toUTCDateRange(startDate, endDate);
+
+  // Heatmap buckets are computed in UTC, not user-local timezone
+  const [createdRows, completedRows] = await Promise.all([
+    prisma.$queryRaw<HeatmapRow[]>`
+      SELECT EXTRACT(DOW  FROM "createdAt")::int AS day_of_week,
+             EXTRACT(HOUR FROM "createdAt")::int AS hour,
+             COUNT(*)::int                        AS count
+      FROM "tasks"
+      WHERE "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+      GROUP BY day_of_week, hour
+    `,
+    prisma.$queryRaw<HeatmapRow[]>`
+      SELECT EXTRACT(DOW  FROM "completedAt")::int AS day_of_week,
+             EXTRACT(HOUR FROM "completedAt")::int AS hour,
+             COUNT(*)::int                          AS count
+      FROM "tasks"
+      WHERE "completedAt" IS NOT NULL
+        AND "completedAt" >= ${start}
+        AND "completedAt" <= ${end}
+      GROUP BY day_of_week, hour
+    `,
+  ]);
+
+  const heatmap = buildHeatmap(createdRows, completedRows);
+  return { period: { startDate, endDate }, heatmap, summary: calculateSummary(heatmap) };
+}
+
 export async function getAdminTrends(
   startDate: string,
   endDate:   string,

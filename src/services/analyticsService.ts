@@ -11,6 +11,8 @@ import type {
   TrendsData,
   UserTimeStatsData,
   AdminTimeStatsData,
+  UserHeatmapData,
+  AdminHeatmapData,
 } from '../repositories/prisma/analyticsRepository';
 
 export type {
@@ -25,6 +27,8 @@ export type {
   TrendsData,
   UserTimeStatsData,
   AdminTimeStatsData,
+  UserHeatmapData,
+  AdminHeatmapData,
 };
 
 export class AnalyticsServiceError extends Error {
@@ -119,4 +123,19 @@ export async function getAdminTimeStats(
   endDate:   string,
 ): Promise<AdminTimeStatsData> {
   return analyticsRepo.getAdminTimeStats(startDate, endDate);
+}
+
+export async function getUserHeatmap(
+  profileId: string,
+  startDate: string,
+  endDate:   string,
+): Promise<UserHeatmapData> {
+  return analyticsRepo.getUserHeatmap(profileId, startDate, endDate);
+}
+
+export async function getAdminHeatmap(
+  startDate: string,
+  endDate:   string,
+): Promise<AdminHeatmapData> {
+  return analyticsRepo.getAdminHeatmap(startDate, endDate);
 }

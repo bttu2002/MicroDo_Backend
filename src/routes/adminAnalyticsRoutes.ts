@@ -10,6 +10,7 @@ import {
   getAdminDeptList,
   getAdminDeptSummaryHandler,
   getAdminTrendsHandler,
+  getAdminTimeHandler,
 } from '../controllers/analyticsController';
 
 const router = Router();
@@ -21,6 +22,7 @@ router.use(adminOnly);
 router.get('/summary',    analyticsLimiter, getAdminSummary);
 router.get('/completion', analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminCompletion);
 router.get('/trends',     analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminTrendsHandler);
+router.get('/time',       analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminTimeHandler);
 router.get('/departments',
   analyticsLimiter,
   validateRequest({ query: departmentListQuerySchema }),

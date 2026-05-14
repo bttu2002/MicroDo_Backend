@@ -510,6 +510,100 @@ export async function getUserTrends(
   return buildTrendSeries(startDate, endDate, createdRows, completedRows);
 }
 
+// ─── Time stats interfaces ────────────────────────────────────
+
+export interface UserTimeStatsData {
+  period:  { startDate: string; endDate: string };
+  summary: { totalDurationSeconds: number; sessionCount: number; averageSessionSeconds: number | null };
+  byTask:  Array<{ taskId: string; title: string; totalDurationSeconds: number; sessionCount: number }>;
+}
+
+export interface AdminTimeStatsData {
+  period:  { startDate: string; endDate: string };
+  summary: { totalDurationSeconds: number; sessionCount: number; averageSessionSeconds: number | null };
+}
+
+interface ByTaskRow {
+  taskId:        string;
+  title:         string;
+  total_seconds: number;
+  session_count: number;
+}
+
+// ─── Time stats functions ─────────────────────────────────────
+
+export async function getUserTimeStats(
+  profileId: string,
+  startDate: string,
+  endDate:   string,
+): Promise<UserTimeStatsData> {
+  const { start, end } = toUTCDateRange(startDate, endDate);
+
+  const [summaryResult, byTaskRows] = await Promise.all([
+    prisma.timeTrackingSession.aggregate({
+      where:  { profileId, startedAt: { gte: start, lte: end }, stoppedAt: { not: null } },
+      _sum:   { durationSeconds: true },
+      _count: { _all: true },
+    }),
+    prisma.$queryRaw<ByTaskRow[]>`
+      SELECT
+        tts."taskId",
+        t.title,
+        COALESCE(SUM(tts."durationSeconds"), 0)::int AS total_seconds,
+        COUNT(*)::int AS session_count
+      FROM time_tracking_sessions tts
+      JOIN tasks t ON t.id = tts."taskId"
+      WHERE tts."profileId" = ${profileId}
+        AND tts."startedAt" >= ${start}
+        AND tts."startedAt" <= ${end}
+        AND tts."stoppedAt" IS NOT NULL
+      GROUP BY tts."taskId", t.title
+      ORDER BY total_seconds DESC
+    `,
+  ]);
+
+  const totalDurationSeconds  = summaryResult._sum.durationSeconds  ?? 0;
+  const sessionCount          = summaryResult._count._all;
+  const averageSessionSeconds = sessionCount > 0
+    ? Math.round(totalDurationSeconds / sessionCount)
+    : null;
+
+  return {
+    period:  { startDate, endDate },
+    summary: { totalDurationSeconds, sessionCount, averageSessionSeconds },
+    byTask:  byTaskRows.map(r => ({
+      taskId:              r.taskId,
+      title:               r.title,
+      totalDurationSeconds: r.total_seconds,
+      sessionCount:         r.session_count,
+    })),
+  };
+}
+
+export async function getAdminTimeStats(
+  startDate: string,
+  endDate:   string,
+): Promise<AdminTimeStatsData> {
+  const { start, end } = toUTCDateRange(startDate, endDate);
+
+  const summaryResult = await prisma.timeTrackingSession.aggregate({
+    where:  { startedAt: { gte: start, lte: end }, stoppedAt: { not: null } },
+    _sum:   { durationSeconds: true },
+    _count: { _all: true },
+  });
+
+  const totalDurationSeconds  = summaryResult._sum.durationSeconds  ?? 0;
+  const sessionCount          = summaryResult._count._all;
+  const averageSessionSeconds = sessionCount > 0
+    ? Math.round(totalDurationSeconds / sessionCount)
+    : null;
+
+  return {
+    period:  { startDate, endDate },
+    summary: { totalDurationSeconds, sessionCount, averageSessionSeconds },
+  };
+}
+
 export async function getAdminTrends(
   startDate: string,
   endDate:   string,

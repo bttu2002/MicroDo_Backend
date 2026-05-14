@@ -9,6 +9,8 @@ import type {
   AdminDeptSummaryData,
   AdminDeptListData,
   TrendsData,
+  UserTimeStatsData,
+  AdminTimeStatsData,
 } from '../repositories/prisma/analyticsRepository';
 
 export type {
@@ -21,6 +23,8 @@ export type {
   AdminDeptSummaryData,
   AdminDeptListData,
   TrendsData,
+  UserTimeStatsData,
+  AdminTimeStatsData,
 };
 
 export class AnalyticsServiceError extends Error {
@@ -100,4 +104,19 @@ export async function getAdminTrends(
   endDate:   string,
 ): Promise<TrendsData> {
   return analyticsRepo.getAdminTrends(startDate, endDate);
+}
+
+export async function getUserTimeStats(
+  profileId: string,
+  startDate: string,
+  endDate:   string,
+): Promise<UserTimeStatsData> {
+  return analyticsRepo.getUserTimeStats(profileId, startDate, endDate);
+}
+
+export async function getAdminTimeStats(
+  startDate: string,
+  endDate:   string,
+): Promise<AdminTimeStatsData> {
+  return analyticsRepo.getAdminTimeStats(startDate, endDate);
 }

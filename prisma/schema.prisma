@@ -80,6 +80,7 @@ model Profile {
   comments             Comment[]
   notifications        Notification[]
   activityLogs         ActivityLog[]
+  timeSessions         TimeTrackingSession[]
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -177,6 +178,7 @@ model Task {
   departmentId String?
   department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   comments     Comment[]
+  timeSessions TimeTrackingSession[]
   completedAt  DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -235,4 +237,22 @@ model Notification {
   @@index([createdAt])
   @@index([userId, readAt, createdAt])
   @@map("notifications")
+}
+
+model TimeTrackingSession {
+  id              String    @id @default(uuid())
+  taskId          String
+  profileId       String
+  startedAt       DateTime
+  stoppedAt       DateTime?
+  durationSeconds Int?
+
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([taskId])
+  @@index([profileId, startedAt])
+  @@index([profileId, stoppedAt])
+  @@map("time_tracking_sessions")
 }

@@ -126,6 +126,31 @@ export const getAdminTrendsHandler = async (req: AuthRequest, res: Response): Pr
   }
 };
 
+// GET /api/analytics/time?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+export const getTime = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { startDate, endDate } = res.locals.validated.query as DateRangeQuery;
+    const profileId = req.user!.prismaId;
+    const data = await analyticsService.getUserTimeStats(profileId, startDate, endDate);
+    res.status(200).json({ success: true, data: { timezone: 'UTC', ...data } });
+  } catch (error) {
+    logger.error({ err: error, requestId: req.requestId }, 'getTime failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
+// GET /api/admin/analytics/time?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+export const getAdminTimeHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { startDate, endDate } = res.locals.validated.query as DateRangeQuery;
+    const data = await analyticsService.getAdminTimeStats(startDate, endDate);
+    res.status(200).json({ success: true, data: { timezone: 'UTC', ...data } });
+  } catch (error) {
+    logger.error({ err: error, requestId: req.requestId }, 'getAdminTime failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 // GET /api/admin/analytics/departments/:departmentId/summary
 export const getAdminDeptSummaryHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

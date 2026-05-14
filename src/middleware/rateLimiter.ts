@@ -131,6 +131,33 @@ export const analyticsLimiter = rateLimit({
   },
 });
 
+// ─── Time tracking limiter — user-based ─────────────────────
+// Covers start/stop/list session endpoints
+// 30 requests per minute per user
+export const timeTrackingLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request): string => {
+    const userId = (req as AuthRequest).user?.prismaId;
+    if (userId !== undefined) return userId;
+    logger.warn(
+      { requestId: req.requestId, path: req.path },
+      'Time tracking rate limiter fallback to IP because req.user missing'
+    );
+    return ipKeyGenerator(req.ip ?? 'unknown');
+  },
+  handler: (req: Request, res: Response): void => {
+    res.status(429).json({
+      success: false,
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many requests, please try again later.',
+      requestId: req.requestId,
+    });
+  },
+});
+
 // ─── Notification limiter — user-based ───────────────────────
 // Covers all notification endpoints (reads + writes)
 // 120 requests per minute per user

@@ -2,6 +2,17 @@ import prisma from '../../config/prisma';
 
 const DUE_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
+// ─── Date range helpers ───────────────────────────────────────
+
+function toUTCDateRange(startDate: string, endDate: string): { start: Date; end: Date } {
+  return {
+    start: new Date(`${startDate}T00:00:00.000Z`),
+    end:   new Date(`${endDate}T23:59:59.999Z`),
+  };
+}
+
+interface AvgResult { avg_ms: number | null }
+
 export interface UserSummaryData {
   tasks: {
     total:   number;
@@ -80,6 +91,125 @@ export async function getUserSummary(profileId: string): Promise<UserSummaryData
     tasks:         { total, todo, doing, done, overdue: overdueCount, dueSoon: dueSoonCount },
     notifications: { unread: unreadCount },
     comments:      { total: commentCount },
+  };
+}
+
+// ─── Completion stats interfaces ─────────────────────────────
+
+export interface UserCompletionData {
+  period: { startDate: string; endDate: string };
+  tasks: {
+    created:                 number;
+    completed:               number;
+    completionRate:          number;
+    averageCompletionTimeMs: number | null;
+  };
+}
+
+export interface AdminCompletionData {
+  period: { startDate: string; endDate: string };
+  tasks: {
+    created:                 number;
+    completed:               number;
+    completionRate:          number;
+    averageCompletionTimeMs: number | null;
+    byStatus: { todo: number; doing: number; done: number };
+  };
+}
+
+export async function getUserCompletionStats(
+  profileId: string,
+  startDate: string,
+  endDate:   string,
+): Promise<UserCompletionData> {
+  const { start, end } = toUTCDateRange(startDate, endDate);
+
+  const [createdCount, completedCount] = await prisma.$transaction([
+    prisma.task.count({ where: { profileId, createdAt:   { gte: start, lte: end } } }),
+    prisma.task.count({ where: { profileId, completedAt: { gte: start, lte: end } } }),
+  ]);
+
+  // AVG(completedAt - createdAt) cannot be expressed in Prisma aggregate — use bounded raw query
+  const avgRaw = await prisma.$queryRaw<AvgResult[]>`
+    SELECT AVG(
+      EXTRACT(EPOCH FROM ("completedAt" - "createdAt")) * 1000
+    ) AS avg_ms
+    FROM "tasks"
+    WHERE "profileId" = ${profileId}
+      AND "completedAt" >= ${start}
+      AND "completedAt" <= ${end}
+  `;
+
+  const avgRow = avgRaw[0];
+  const averageCompletionTimeMs =
+    avgRow !== undefined && avgRow.avg_ms !== null
+      ? Math.round(Number(avgRow.avg_ms))
+      : null;
+
+  const completionRate =
+    createdCount > 0
+      ? Math.round((completedCount / createdCount) * 10000) / 10000
+      : 0;
+
+  return {
+    period: { startDate, endDate },
+    tasks:  { created: createdCount, completed: completedCount, completionRate, averageCompletionTimeMs },
+  };
+}
+
+export async function getAdminCompletionStats(
+  startDate: string,
+  endDate:   string,
+): Promise<AdminCompletionData> {
+  const { start, end } = toUTCDateRange(startDate, endDate);
+
+  const [createdCount, completedCount, statusGroups] = await prisma.$transaction([
+    prisma.task.count({ where: { createdAt:   { gte: start, lte: end } } }),
+    prisma.task.count({ where: { completedAt: { gte: start, lte: end } } }),
+    prisma.task.groupBy({
+      by:    ['status'],
+      where: { createdAt: { gte: start, lte: end } },
+      _count: { status: true },
+    }),
+  ]);
+
+  const avgRaw = await prisma.$queryRaw<AvgResult[]>`
+    SELECT AVG(
+      EXTRACT(EPOCH FROM ("completedAt" - "createdAt")) * 1000
+    ) AS avg_ms
+    FROM "tasks"
+    WHERE "completedAt" >= ${start}
+      AND "completedAt" <= ${end}
+  `;
+
+  const avgRow = avgRaw[0];
+  const averageCompletionTimeMs =
+    avgRow !== undefined && avgRow.avg_ms !== null
+      ? Math.round(Number(avgRow.avg_ms))
+      : null;
+
+  const completionRate =
+    createdCount > 0
+      ? Math.round((completedCount / createdCount) * 10000) / 10000
+      : 0;
+
+  let todo = 0, doing = 0, done = 0;
+  for (const g of statusGroups) {
+    const c = g._count.status;
+    if (g.status === 'todo')  todo  = c;
+    if (g.status === 'doing') doing = c;
+    if (g.status === 'done')  done  = c;
+  }
+
+  return {
+    period: { startDate, endDate },
+    tasks: {
+      created:  createdCount,
+      completed: completedCount,
+      completionRate,
+      averageCompletionTimeMs,
+      byStatus: { todo, doing, done },
+    },
   };
 }
 

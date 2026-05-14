@@ -16,6 +16,38 @@ export interface SessionListData {
   sessions: TimeSession[];
 }
 
+export interface ActiveSessionWithTask {
+  id:        string;
+  taskId:    string;
+  profileId: string;
+  startedAt: Date;
+  task:      { title: string };
+}
+
+export async function getActiveSessionWithTask(profileId: string): Promise<ActiveSessionWithTask | null> {
+  return prisma.timeTrackingSession.findFirst({
+    where:  { profileId, stoppedAt: null },
+    select: { id: true, taskId: true, profileId: true, startedAt: true, task: { select: { title: true } } },
+  });
+}
+
+export async function getActiveSessionsByProfileIds(
+  profileIds: string[]
+): Promise<Map<string, ActiveSessionWithTask>> {
+  if (profileIds.length === 0) return new Map();
+
+  const sessions = await prisma.timeTrackingSession.findMany({
+    where:  { profileId: { in: profileIds }, stoppedAt: null },
+    select: { id: true, taskId: true, profileId: true, startedAt: true, task: { select: { title: true } } },
+  });
+
+  const result = new Map<string, ActiveSessionWithTask>();
+  for (const s of sessions) {
+    result.set(s.profileId, s);
+  }
+  return result;
+}
+
 export async function checkTaskOwnership(profileId: string, taskId: string): Promise<boolean> {
   const task = await prisma.task.findFirst({
     where:  { id: taskId, profileId },

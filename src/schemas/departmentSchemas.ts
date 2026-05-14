@@ -63,3 +63,18 @@ export const getInvitationsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
 export type GetInvitationsQuery = z.infer<typeof getInvitationsQuerySchema>;
+
+export const getWorkloadQuerySchema = z.object({
+  page:  z.coerce.number().int().positive().max(1000).default(1),
+  limit: z.coerce.number().int().positive().max(50).default(20),
+});
+export type GetWorkloadQuery = z.infer<typeof getWorkloadQuerySchema>;
+
+export const getMemberTasksQuerySchema = z.object({
+  status:        z.enum(['todo', 'doing', 'done']).optional(),
+  priority:      z.enum(['low', 'medium', 'high']).optional(),
+  deadlineBefore: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
+  page:          z.coerce.number().int().positive().max(1000).default(1),
+  limit:         z.coerce.number().int().positive().max(50).default(20),
+});
+export type GetMemberTasksQuery = z.infer<typeof getMemberTasksQuerySchema>;

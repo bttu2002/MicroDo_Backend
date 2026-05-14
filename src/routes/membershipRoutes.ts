@@ -20,11 +20,18 @@ import {
   cancelInvitation,
 } from '../controllers/invitationController';
 import {
+  getDepartmentWorkload,
+  getMemberTasks,
+  getMemberActiveSession,
+} from '../controllers/workloadController';
+import {
   addMemberSchema,
   changeMemberRoleSchema,
   transferOwnershipSchema,
   getMembersQuerySchema,
   getInvitationsQuerySchema,
+  getWorkloadQuerySchema,
+  getMemberTasksQuerySchema,
 } from '../schemas/departmentSchemas';
 import { sendInvitationSchema } from '../schemas/invitationSchemas';
 
@@ -57,6 +64,17 @@ router.post(
   validateRequest({ body: transferOwnershipSchema }),
   transferOwnership
 );
+
+// ─── Workload ─────────────────────────────────────────────────
+
+// GET /api/departments/:departmentId/workload
+router.get('/:departmentId/workload', requireDepartmentAdmin, validateRequest({ query: getWorkloadQuerySchema }), getDepartmentWorkload);
+
+// GET /api/departments/:departmentId/members/:userId/tasks
+router.get('/:departmentId/members/:userId/tasks', requireDepartmentAdmin, validateRequest({ query: getMemberTasksQuerySchema }), getMemberTasks);
+
+// GET /api/departments/:departmentId/members/:userId/time-tracking/active
+router.get('/:departmentId/members/:userId/time-tracking/active', requireDepartmentAdmin, getMemberActiveSession);
 
 // ─── Invitations (department-scoped) ─────────────────────────
 

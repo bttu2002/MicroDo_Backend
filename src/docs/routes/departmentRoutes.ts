@@ -9,6 +9,8 @@ import {
   addMemberSchema,
   changeMemberRoleSchema,
   transferOwnershipSchema,
+  getWorkloadQuerySchema,
+  getMemberTasksQuerySchema,
 } from '../../schemas/departmentSchemas';
 import { sendInvitationSchema } from '../../schemas/invitationSchemas';
 
@@ -393,6 +395,141 @@ registry.registerPath({
     403: errorResponses[403],
     404: errorResponses[404],
     429: errorResponses[429],
+    500: errorResponses[500],
+  },
+});
+
+// ─── Workload ─────────────────────────────────────────────────
+
+const memberUserParams = z.object({
+  departmentId: z.string().uuid().openapi({ example: 'dept-uuid-1234' }),
+  userId: z.string().uuid().openapi({ example: 'user-uuid-5678' }),
+});
+
+const WorkloadTaskStatsSchema = z.object({
+  total:        z.number().openapi({ example: 5 }),
+  todo:         z.number().openapi({ example: 2 }),
+  doing:        z.number().openapi({ example: 1 }),
+  done:         z.number().openapi({ example: 2 }),
+  overdue:      z.number().openapi({ example: 0 }),
+  highPriority: z.number().openapi({ example: 1 }),
+  nearDeadline: z.number().openapi({ example: 1 }),
+}).openapi('WorkloadTaskStats');
+
+const MemberWorkloadSchema = z.object({
+  memberId: z.string().uuid(),
+  profile: z.object({
+    id:       z.string().uuid(),
+    name:     z.string().nullable(),
+    email:    z.string().email(),
+    username: z.string().nullable(),
+    avatar:   z.string().nullable(),
+    jobTitle: z.string().nullable(),
+  }),
+  role:             z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']).openapi({ example: 'MEMBER' }),
+  tasks:            WorkloadTaskStatsSchema,
+  hasActiveSession: z.boolean().openapi({ example: false }),
+}).openapi('MemberWorkload');
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/departments/{departmentId}/workload',
+  tags: ['Department Members'],
+  summary: 'Get department workload overview',
+  description: 'Returns task stats and active session status for every active member of the department. Requires department OWNER or ADMIN role.',
+  security: bearerSecurity,
+  request: {
+    params: deptIdParam,
+    query: getWorkloadQuerySchema,
+  },
+  responses: {
+    200: {
+      description: 'Workload overview',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.literal(true),
+            count: z.number(),
+            pagination: z.object({
+              page: z.number(), limit: z.number(), total: z.number(), totalPages: z.number(),
+            }),
+            data: z.array(MemberWorkloadSchema),
+          }),
+        },
+      },
+    },
+    401: errorResponses[401],
+    403: errorResponses[403],
+    500: errorResponses[500],
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/departments/{departmentId}/members/{userId}/tasks',
+  tags: ['Department Members'],
+  summary: 'Get tasks of a specific member in a department',
+  description: 'Returns a paginated list of tasks assigned to a specific member within this department. Supports filtering by status, priority, and deadline. Requires department OWNER or ADMIN role.',
+  security: bearerSecurity,
+  request: {
+    params: memberUserParams,
+    query: getMemberTasksQuerySchema,
+  },
+  responses: {
+    200: {
+      description: 'Paginated task list for the member',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.literal(true),
+            count: z.number(),
+            pagination: z.object({
+              page: z.number(), limit: z.number(), total: z.number(), totalPages: z.number(),
+            }),
+            data: z.array(z.object({}).passthrough()),
+          }),
+        },
+      },
+    },
+    401: errorResponses[401],
+    403: errorResponses[403],
+    404: errorResponses[404],
+    500: errorResponses[500],
+  },
+});
+
+registry.registerPath({
+  method: 'get',
+  path: '/api/departments/{departmentId}/members/{userId}/time-tracking/active',
+  tags: ['Department Members'],
+  summary: 'Get active time-tracking session of a member',
+  description: 'Returns the currently running time-tracking session (including task title) for a specific member. Returns hasActiveSession: false if the member is not currently tracking. Requires department OWNER or ADMIN role.',
+  security: bearerSecurity,
+  request: { params: memberUserParams },
+  responses: {
+    200: {
+      description: 'Active session result',
+      content: {
+        'application/json': {
+          schema: z.object({
+            success: z.literal(true),
+            data: z.object({
+              hasActiveSession: z.boolean().openapi({ example: false }),
+              session: z.object({
+                id:        z.string().uuid(),
+                taskId:    z.string().uuid(),
+                profileId: z.string().uuid(),
+                startedAt: z.string().openapi({ example: '2026-05-15T08:30:00.000Z' }),
+                task:      z.object({ title: z.string().openapi({ example: 'Fix login bug' }) }),
+              }).nullable(),
+            }),
+          }),
+        },
+      },
+    },
+    401: errorResponses[401],
+    403: errorResponses[403],
+    404: errorResponses[404],
     500: errorResponses[500],
   },
 });

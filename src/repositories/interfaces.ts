@@ -265,6 +265,22 @@ export interface TaskStatsResult {
   done: number;
 }
 
+export interface WorkloadTaskStats {
+  total: number;
+  todo: number;
+  doing: number;
+  done: number;
+  overdue: number;
+  highPriority: number;
+  nearDeadline: number;
+}
+
+export interface MemberTaskFilterOptions {
+  status?: 'todo' | 'doing' | 'done';
+  priority?: 'low' | 'medium' | 'high';
+  deadlineBefore?: string;
+}
+
 // ─── Repository Interfaces ────────────────────────────────────
 
 export interface IProfileRepository {
@@ -314,6 +330,8 @@ export interface ITaskRepository {
   findByIdOrMongoId(id: string): Promise<Task | null>;
   findByProfile(profileId: string): Promise<Task[]>;
   findManyPaginated(options: FindManyPaginatedOptions): Promise<PaginatedTasksResult>;
+  getMemberTasksInDepartment(profileId: string, departmentId: string, filter: MemberTaskFilterOptions, page: number, limit: number): Promise<PaginatedTasksResult>;
+  getWorkloadByMemberIds(memberIds: string[], departmentId: string): Promise<Map<string, WorkloadTaskStats>>;
   create(data: CreateTaskData): Promise<Task>;
   update(id: string, data: UpdateTaskData): Promise<Task>;
   delete(id: string): Promise<void>;

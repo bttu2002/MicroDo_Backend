@@ -10,3 +10,4 @@ Claude.md
 .claude
 *-backup.json
 src/scripts
+step*Test.ts

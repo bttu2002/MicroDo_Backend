@@ -9,6 +9,7 @@ import {
   getAdminCompletion,
   getAdminDeptList,
   getAdminDeptSummaryHandler,
+  getAdminTrendsHandler,
 } from '../controllers/analyticsController';
 
 const router = Router();
@@ -19,6 +20,7 @@ router.use(adminOnly);
 // analyticsLimiter applied inline — router.use pattern unreliable for rate limiters in sub-routers
 router.get('/summary',    analyticsLimiter, getAdminSummary);
 router.get('/completion', analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminCompletion);
+router.get('/trends',     analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminTrendsHandler);
 router.get('/departments',
   analyticsLimiter,
   validateRequest({ query: departmentListQuerySchema }),

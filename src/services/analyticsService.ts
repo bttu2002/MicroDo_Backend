@@ -8,6 +8,7 @@ import type {
   DeptCompletionData,
   AdminDeptSummaryData,
   AdminDeptListData,
+  TrendsData,
 } from '../repositories/prisma/analyticsRepository';
 
 export type {
@@ -19,6 +20,7 @@ export type {
   DeptCompletionData,
   AdminDeptSummaryData,
   AdminDeptListData,
+  TrendsData,
 };
 
 export class AnalyticsServiceError extends Error {
@@ -83,4 +85,19 @@ export async function getAdminDeptSummary(departmentId: string): Promise<AdminDe
   const data = await analyticsRepo.getAdminDeptSummary(departmentId);
   if (data === null) throw new AnalyticsServiceError('Department not found', 404);
   return data;
+}
+
+export async function getUserTrends(
+  profileId: string,
+  startDate: string,
+  endDate:   string,
+): Promise<TrendsData> {
+  return analyticsRepo.getUserTrends(profileId, startDate, endDate);
+}
+
+export async function getAdminTrends(
+  startDate: string,
+  endDate:   string,
+): Promise<TrendsData> {
+  return analyticsRepo.getAdminTrends(startDate, endDate);
 }

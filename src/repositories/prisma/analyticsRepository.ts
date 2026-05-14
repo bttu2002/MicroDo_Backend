@@ -11,7 +11,8 @@ function toUTCDateRange(startDate: string, endDate: string): { start: Date; end:
   };
 }
 
-interface AvgResult { avg_ms: number | null }
+interface AvgResult  { avg_ms: number | null }
+interface TrendRow   { day: Date; count: number }
 
 export interface UserSummaryData {
   tasks: {
@@ -434,6 +435,103 @@ export async function getAdminDeptSummary(departmentId: string): Promise<AdminDe
     tasks:   { total, todo, doing, done, overdue: overdueCount, dueSoon: dueSoonCount },
     members: { active: memberCount },
   };
+}
+
+// ─── Trend analytics interfaces ──────────────────────────────
+
+export interface TrendPoint {
+  date:      string;
+  created:   number;
+  completed: number;
+}
+
+export interface TrendsData {
+  period: { startDate: string; endDate: string };
+  series: TrendPoint[];
+}
+
+// ─── Trend analytics helpers ──────────────────────────────────
+
+function buildTrendSeries(
+  startDate:     string,
+  endDate:       string,
+  createdRows:   TrendRow[],
+  completedRows: TrendRow[],
+): TrendsData {
+  const createdMap   = new Map<string, number>();
+  const completedMap = new Map<string, number>();
+
+  for (const r of createdRows)   createdMap.set(r.day.toISOString().slice(0, 10),   Number(r.count));
+  for (const r of completedRows) completedMap.set(r.day.toISOString().slice(0, 10), Number(r.count));
+
+  const series: TrendPoint[] = [];
+  const current = new Date(`${startDate}T00:00:00.000Z`);
+  const endDt   = new Date(`${endDate}T00:00:00.000Z`);
+
+  while (current <= endDt) {
+    const dateStr = current.toISOString().slice(0, 10);
+    series.push({
+      date:      dateStr,
+      created:   createdMap.get(dateStr)   ?? 0,
+      completed: completedMap.get(dateStr) ?? 0,
+    });
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return { period: { startDate, endDate }, series };
+}
+
+// ─── Trend analytics functions ────────────────────────────────
+
+export async function getUserTrends(
+  profileId: string,
+  startDate: string,
+  endDate:   string,
+): Promise<TrendsData> {
+  const { start, end } = toUTCDateRange(startDate, endDate);
+
+  const [createdRows, completedRows] = await Promise.all([
+    prisma.$queryRaw<TrendRow[]>`
+      SELECT DATE_TRUNC('day', "createdAt") AS day, COUNT(*)::int AS count
+      FROM "tasks"
+      WHERE "profileId" = ${profileId}
+        AND "createdAt" >= ${start} AND "createdAt" <= ${end}
+      GROUP BY day ORDER BY day
+    `,
+    prisma.$queryRaw<TrendRow[]>`
+      SELECT DATE_TRUNC('day', "completedAt") AS day, COUNT(*)::int AS count
+      FROM "tasks"
+      WHERE "profileId" = ${profileId}
+        AND "completedAt" >= ${start} AND "completedAt" <= ${end}
+      GROUP BY day ORDER BY day
+    `,
+  ]);
+
+  return buildTrendSeries(startDate, endDate, createdRows, completedRows);
+}
+
+export async function getAdminTrends(
+  startDate: string,
+  endDate:   string,
+): Promise<TrendsData> {
+  const { start, end } = toUTCDateRange(startDate, endDate);
+
+  const [createdRows, completedRows] = await Promise.all([
+    prisma.$queryRaw<TrendRow[]>`
+      SELECT DATE_TRUNC('day', "createdAt") AS day, COUNT(*)::int AS count
+      FROM "tasks"
+      WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+      GROUP BY day ORDER BY day
+    `,
+    prisma.$queryRaw<TrendRow[]>`
+      SELECT DATE_TRUNC('day', "completedAt") AS day, COUNT(*)::int AS count
+      FROM "tasks"
+      WHERE "completedAt" >= ${start} AND "completedAt" <= ${end}
+      GROUP BY day ORDER BY day
+    `,
+  ]);
+
+  return buildTrendSeries(startDate, endDate, createdRows, completedRows);
 }
 
 export async function getAdminSummary(): Promise<AdminSummaryData> {

@@ -119,7 +119,7 @@ registry.registerPath({
   path: '/api/tasks/{id}',
   tags: ['Tasks'],
   summary: 'Update a task',
-  description: 'Updates one or more fields of an existing task. The user must own the task. Requires User or Admin role.',
+  description: 'Updates one or more fields of an existing task. Allowed if: (1) the caller owns the task, (2) the caller is a System Admin, or (3) the task belongs to a department and the caller is an OWNER or ADMIN of that department. Requires User or Admin role.',
   security: bearerSecurity,
   request: {
     params: z.object({ id: z.string().uuid().openapi({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' }) }),
@@ -154,7 +154,7 @@ registry.registerPath({
   path: '/api/tasks/{id}',
   tags: ['Tasks'],
   summary: 'Delete a task',
-  description: 'Permanently deletes a task. The user must own the task. Requires User or Admin role.',
+  description: 'Permanently deletes a task. Allowed if: (1) the caller owns the task, (2) the caller is a System Admin, or (3) the task belongs to a department and the caller is an OWNER or ADMIN of that department. Requires User or Admin role.',
   security: bearerSecurity,
   request: {
     params: z.object({ id: z.string().uuid().openapi({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' }) }),

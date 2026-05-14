@@ -104,6 +104,33 @@ export const departmentWriteLimiter = rateLimit({
   },
 });
 
+// ─── Analytics limiter — user-based ─────────────────────────
+// Covers all analytics endpoints (read-heavy, can be expensive)
+// 30 requests per minute per user
+export const analyticsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request): string => {
+    const userId = (req as AuthRequest).user?.prismaId;
+    if (userId !== undefined) return userId;
+    logger.warn(
+      { requestId: req.requestId, path: req.path },
+      'Analytics rate limiter fallback to IP because req.user missing'
+    );
+    return ipKeyGenerator(req.ip ?? 'unknown');
+  },
+  handler: (req: Request, res: Response): void => {
+    res.status(429).json({
+      success: false,
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many requests, please try again later.',
+      requestId: req.requestId,
+    });
+  },
+});
+
 // ─── Notification limiter — user-based ───────────────────────
 // Covers all notification endpoints (reads + writes)
 // 120 requests per minute per user

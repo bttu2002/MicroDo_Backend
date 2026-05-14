@@ -1,5 +1,6 @@
 import { env } from './config/env';
 import express, { Request, Response, NextFunction } from 'express';
+import { mountSwagger } from './docs/swagger';
 import { createServer } from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
 import cors from 'cors';
@@ -108,6 +109,11 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
 app.use('/api/time-tracking', timeTrackingRoutes);
+
+// ─── 9. Swagger UI (development only) ────────────────────────
+if (env.NODE_ENV === 'development') {
+  mountSwagger(app);
+}
 
 // Protected test route
 app.get('/api/protected', protect, (req: AuthRequest, res: Response) => {

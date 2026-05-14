@@ -207,6 +207,7 @@ export interface CreateTaskData {
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: Date;
+  completedAt?: Date;
   profileId: string;
   departmentId?: string;
   mongoId?: string;
@@ -219,6 +220,7 @@ export interface UpdateTaskData {
   priority?: 'low' | 'medium' | 'high';
   tags?: string[];
   deadline?: Date | null;
+  completedAt?: Date | null;
   departmentId?: string | null;
 }
 

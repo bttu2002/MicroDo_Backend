@@ -177,6 +177,7 @@ model Task {
   departmentId String?
   department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   comments     Comment[]
+  completedAt  DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -187,6 +188,9 @@ model Task {
   @@index([createdAt])
   @@index([profileId, status])
   @@index([departmentId, status])
+  @@index([profileId, completedAt])
+  @@index([departmentId, completedAt])
+  @@index([completedAt])
   @@map("tasks")
 }
 

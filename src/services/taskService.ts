@@ -128,15 +128,19 @@ export class TaskService {
       }
     }
 
+    const initialStatus = input.status ?? 'todo';
+    const completedNow  = initialStatus === 'done' ? new Date() : undefined;
+
     const task = await this.taskRepo.create({
       title:       input.title.trim(),
       description: input.description ?? '',
-      status:      input.status      ?? 'todo',
+      status:      initialStatus,
       priority:    input.priority    ?? 'medium',
       tags:        input.tags        ?? [],
       profileId:   profile.id,
       ...(input.deadline     != null && { deadline:     input.deadline }),
       ...(input.departmentId != null && { departmentId: input.departmentId }),
+      ...(completedNow !== undefined  && { completedAt:  completedNow }),
     });
 
     return mapPrismaTaskToResponseDTO({ ...task, profile });
@@ -233,10 +237,23 @@ export class TaskService {
     const data: UpdateTaskData = {};
     if (input.title       !== undefined) data.title       = input.title;
     if (input.description !== undefined) data.description = input.description;
-    if (input.status      !== undefined) data.status      = input.status;
     if (input.priority    !== undefined) data.priority    = input.priority;
     if (input.tags        !== undefined) data.tags        = input.tags;
     if (input.deadline    !== undefined) data.deadline    = input.deadline;
+
+    // completedAt is server-managed only — client cannot inject this value.
+    // Transition: non-done → done sets it once; done → non-done clears it;
+    // done → done preserves the original timestamp (no reset).
+    if (input.status !== undefined) {
+      data.status = input.status;
+      if (input.status === 'done' && task.status !== 'done') {
+        const completedNow = new Date();
+        data.completedAt = completedNow;
+      } else if (input.status !== 'done') {
+        data.completedAt = null;
+      }
+      // done → done: completedAt not added to data, Prisma leaves it unchanged
+    }
 
     const updated = await this.taskRepo.update(task.id, data);
 

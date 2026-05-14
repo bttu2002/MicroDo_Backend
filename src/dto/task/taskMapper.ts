@@ -23,6 +23,7 @@ export const mapPrismaTaskToResponseDTO = (task: PrismaTask & { profile?: { mong
     priority: task.priority as 'low' | 'medium' | 'high',
     tags: task.tags,
     deadline: task.deadline,
+    completedAt: task.completedAt ?? null,
     userId: task.profile?.mongoId ?? task.profileId,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,

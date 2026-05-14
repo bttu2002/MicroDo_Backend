@@ -18,6 +18,7 @@ export interface TaskResponseDTO {
   priority: 'low' | 'medium' | 'high';
   tags: string[];
   deadline: Date | null;
+  completedAt: Date | null;
   userId: string;
   createdAt: Date;
   updatedAt: Date;

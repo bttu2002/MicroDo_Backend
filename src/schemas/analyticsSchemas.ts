@@ -33,3 +33,15 @@ export const dateRangeQuerySchema = z.object({
 });
 
 export type DateRangeQuery = z.infer<typeof dateRangeQuerySchema>;
+
+export const departmentIdParamSchema = z.object({
+  departmentId: z.string().uuid('Invalid departmentId'),
+});
+
+export const departmentListQuerySchema = z.object({
+  page:  z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type DepartmentIdParam   = z.infer<typeof departmentIdParamSchema>;
+export type DepartmentListQuery = z.infer<typeof departmentListQuerySchema>;

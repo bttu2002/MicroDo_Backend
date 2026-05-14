@@ -3,8 +3,13 @@ import { protect } from '../middleware/authMiddleware';
 import { adminOnly } from '../middleware/adminMiddleware';
 import { analyticsLimiter } from '../middleware/rateLimiter';
 import { validateRequest } from '../middleware/validateRequest';
-import { dateRangeQuerySchema } from '../schemas/analyticsSchemas';
-import { getAdminSummary, getAdminCompletion } from '../controllers/analyticsController';
+import { dateRangeQuerySchema, departmentIdParamSchema, departmentListQuerySchema } from '../schemas/analyticsSchemas';
+import {
+  getAdminSummary,
+  getAdminCompletion,
+  getAdminDeptList,
+  getAdminDeptSummaryHandler,
+} from '../controllers/analyticsController';
 
 const router = Router();
 
@@ -14,5 +19,15 @@ router.use(adminOnly);
 // analyticsLimiter applied inline — router.use pattern unreliable for rate limiters in sub-routers
 router.get('/summary',    analyticsLimiter, getAdminSummary);
 router.get('/completion', analyticsLimiter, validateRequest({ query: dateRangeQuerySchema }), getAdminCompletion);
+router.get('/departments',
+  analyticsLimiter,
+  validateRequest({ query: departmentListQuerySchema }),
+  getAdminDeptList,
+);
+router.get('/departments/:departmentId/summary',
+  analyticsLimiter,
+  validateRequest({ params: departmentIdParamSchema }),
+  getAdminDeptSummaryHandler,
+);
 
 export default router;

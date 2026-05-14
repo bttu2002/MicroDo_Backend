@@ -47,7 +47,9 @@ export interface MemberWithProfile {
     id: string;
     email: string;
     name: string | null;
+    username: string | null;
     avatar: string | null;
+    jobTitle: string | null;
   };
 }
 

@@ -19,7 +19,9 @@ const memberSelect = {
   id: true,
   email: true,
   name: true,
+  username: true,
   avatar: true,
+  jobTitle: true,
 } as const;
 
 const membershipOrderBy = [
@@ -125,7 +127,7 @@ export class PrismaDepartmentRepository implements IDepartmentRepository {
         status: import('@prisma/client').MembershipStatus;
         joinedAt: Date;
         invitedBy: string | null;
-        member: { id: string; email: string; name: string | null; avatar: string | null };
+        member: { id: string; email: string; name: string | null; username: string | null; avatar: string | null; jobTitle: string | null };
       }>;
       _count: { memberships: number; tasks: number };
     },

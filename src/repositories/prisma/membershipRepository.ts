@@ -36,7 +36,7 @@ export class PrismaMembershipRepository implements IMembershipRepository {
         where,
         include: {
           member: {
-            select: { id: true, email: true, name: true, avatar: true },
+            select: { id: true, email: true, name: true, username: true, avatar: true, jobTitle: true },
           },
         },
         orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }, { id: 'asc' }],

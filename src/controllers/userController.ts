@@ -11,6 +11,7 @@ const profileSelect = {
   name:      true,
   username:  true,
   avatar:    true,
+  jobTitle:  true,
   role:      true,
   status:    true,
   mongoId:   true,
@@ -39,6 +40,7 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
         name:      profile.name,
         username:  profile.username,
         avatar:    profile.avatar,
+        jobTitle:  profile.jobTitle,
         role:      profile.role,
         status:    profile.status,
         createdAt: profile.createdAt,
@@ -54,7 +56,7 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, email, avatar, username } = res.locals.validated.body as UpdateProfileInput;
+    const { name, email, avatar, username, jobTitle } = res.locals.validated.body as UpdateProfileInput;
 
     if (email !== undefined) {
       const existing = await prisma.profile.findUnique({ where: { email } });
@@ -79,6 +81,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
         ...(avatar   !== undefined && { avatar }),
         ...(email    !== undefined && { email }),
         ...(username !== undefined && { username }),
+        ...(jobTitle !== undefined && { jobTitle }),
       },
       select: profileSelect,
     });
@@ -93,6 +96,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
         name:      profile.name,
         username:  profile.username,
         avatar:    profile.avatar,
+        jobTitle:  profile.jobTitle,
         role:      profile.role,
         status:    profile.status,
         createdAt: profile.createdAt,

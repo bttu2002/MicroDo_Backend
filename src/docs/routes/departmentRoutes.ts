@@ -35,6 +35,7 @@ const DepartmentMemberSchema = z.object({
     name: z.string().nullable(),
     username: z.string().nullable(),
     avatar: z.string().nullable(),
+    jobTitle: z.string().nullable().openapi({ example: 'Senior Software Engineer' }),
   }),
 }).openapi('DepartmentMember');
 

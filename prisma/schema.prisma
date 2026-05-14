@@ -73,6 +73,7 @@ model Profile {
   passwordResetExpires DateTime?
   mongoId              String?   @unique
   username             String?   @unique
+  jobTitle             String?   @db.VarChar(200)
   tasks                Task[]
   memberships          DepartmentMember[]    @relation("MemberProfile")
   invitedMemberships   DepartmentMember[]    @relation("InviterProfile")

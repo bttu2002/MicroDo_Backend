@@ -12,6 +12,7 @@ const AdminUserSchema = z.object({
   email: z.string().email().openapi({ example: 'user@example.com' }),
   name: z.string().nullable().openapi({ example: 'John Doe' }),
   username: z.string().nullable().openapi({ example: 'johndoe' }),
+  jobTitle: z.string().nullable().openapi({ example: 'Senior Software Engineer' }),
   role: z.enum(['USER', 'ADMIN']).openapi({ example: 'USER' }),
   status: z.enum(['ACTIVE', 'BANNED']).openapi({ example: 'ACTIVE' }),
   createdAt: z.string().openapi({ example: '2026-05-14T00:00:00.000Z' }),

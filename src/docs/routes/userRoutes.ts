@@ -9,6 +9,7 @@ const ProfileSchema = z.object({
   name: z.string().nullable().openapi({ example: 'John Doe' }),
   username: z.string().nullable().openapi({ example: 'johndoe' }),
   avatar: z.string().nullable().openapi({ example: 'https://example.com/avatar.png' }),
+  jobTitle: z.string().nullable().openapi({ example: 'Senior Software Engineer' }),
   role: z.enum(['USER', 'ADMIN']).openapi({ example: 'USER' }),
   status: z.enum(['ACTIVE', 'BANNED']).openapi({ example: 'ACTIVE' }),
   createdAt: z.string().openapi({ example: '2026-05-14T00:00:00.000Z' }),
@@ -46,7 +47,7 @@ registry.registerPath({
   path: '/api/user/profile',
   tags: ['User'],
   summary: 'Update current user profile',
-  description: 'Updates one or more profile fields (name, email, username, avatar) for the authenticated user. Email and username must be unique across the system. Requires User or Admin role.',
+  description: 'Updates one or more profile fields (name, email, username, avatar, jobTitle) for the authenticated user. Email and username must be unique across the system. Requires User or Admin role.',
   security: bearerSecurity,
   request: {
     body: {

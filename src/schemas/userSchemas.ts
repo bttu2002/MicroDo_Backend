@@ -10,5 +10,6 @@ export const updateProfileSchema = z.object({
     .toLowerCase()
     .regex(/^\w{3,30}$/, 'Username must be 3–30 characters and contain only letters, numbers, or underscores')
     .optional(),
+  jobTitle: z.string().trim().max(200).optional(),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

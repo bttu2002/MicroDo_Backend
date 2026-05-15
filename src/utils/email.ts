@@ -4,6 +4,7 @@ interface SendEmailOptions {
   email: string;
   subject: string;
   message: string;
+  html?: string;
 }
 
 const sendEmail = async (options: SendEmailOptions): Promise<void> => {
@@ -24,7 +25,7 @@ const sendEmail = async (options: SendEmailOptions): Promise<void> => {
     to: options.email,
     subject: options.subject,
     text: options.message,
-    // html: options.message, // If you want to use HTML
+    ...(options.html && { html: options.html }),
   };
 
   // Send the email

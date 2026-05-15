@@ -92,6 +92,28 @@ export const inviteMember = async (
         `You have been invited to join the department "${dept.name}" as ${role}.\n\n` +
         `Accept your invitation here (valid for ${EXPIRY_DAYS} days):\n\n${acceptUrl}\n\n` +
         `If you did not expect this invitation, you can safely ignore this email.`,
+      html: `
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px;background:#ffffff;border-radius:12px">
+  <h2 style="color:#1A1A1A;margin-top:0">You've been invited!</h2>
+  <p style="color:#4B5563;font-size:15px;line-height:1.6">
+    You have been invited to join the department
+    <strong style="color:#1A1A1A">&quot;${dept.name}&quot;</strong>
+    as <strong style="color:#1A1A1A">${role}</strong>.
+  </p>
+  <p style="color:#4B5563;font-size:15px">This invitation is valid for ${EXPIRY_DAYS} days.</p>
+  <div style="text-align:center;margin:36px 0">
+    <a href="${acceptUrl}"
+       style="display:inline-block;padding:14px 36px;background-color:#10BA41;color:#ffffff;
+              text-decoration:none;border-radius:8px;font-weight:700;font-size:16px;
+              letter-spacing:0.3px">
+      Open Invitation
+    </a>
+  </div>
+  <hr style="border:none;border-top:1px solid #E5E7EB;margin:24px 0" />
+  <p style="color:#9CA3AF;font-size:13px;margin:0">
+    If you did not expect this invitation, you can safely ignore this email.
+  </p>
+</div>`,
     });
   } catch {
     await invitationRepo.delete(invitation.id);

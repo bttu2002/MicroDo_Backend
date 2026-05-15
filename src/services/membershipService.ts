@@ -250,13 +250,35 @@ export const transferOwnership = async (
   departmentId: string,
   newOwnerId: string
 ): Promise<void> => {
-  if (actorId === newOwnerId) {
-    throw new ServiceError('You are already the OWNER of this department', 400);
-  }
+  const actorProfile = await profileRepo.findById(actorId);
+  const isGlobalAdmin = actorProfile?.role === 'ADMIN';
 
-  const actorMembership = await membershipRepo.findByUserAndDepartment(actorId, departmentId);
-  if (!actorMembership || actorMembership.status !== 'ACTIVE' || actorMembership.role !== 'OWNER') {
-    throw new ServiceError('Only the current OWNER can transfer ownership', 403);
+  let currentOwnerMembershipId: string | null = null;
+  let demotedRole: DepartmentMemberRole = 'ADMIN';
+
+  if (isGlobalAdmin) {
+    // Global admin: find current OWNER (if any) to demote to MEMBER
+    const currentOwner = await prisma.departmentMember.findFirst({
+      where: { departmentId, role: 'OWNER', status: 'ACTIVE' },
+    });
+    if (currentOwner) {
+      if (currentOwner.userId === newOwnerId) {
+        throw new ServiceError('This member is already the OWNER of this department', 400);
+      }
+      currentOwnerMembershipId = currentOwner.id;
+      demotedRole = 'MEMBER';
+    }
+  } else {
+    // Regular flow: actor must be current OWNER
+    if (actorId === newOwnerId) {
+      throw new ServiceError('You are already the OWNER of this department', 400);
+    }
+    const actorMembership = await membershipRepo.findByUserAndDepartment(actorId, departmentId);
+    if (!actorMembership || actorMembership.status !== 'ACTIVE' || actorMembership.role !== 'OWNER') {
+      throw new ServiceError('Only the current OWNER can transfer ownership', 403);
+    }
+    currentOwnerMembershipId = actorMembership.id;
+    demotedRole = 'ADMIN';
   }
 
   const targetMembership = await membershipRepo.findByUserAndDepartment(newOwnerId, departmentId);
@@ -264,23 +286,26 @@ export const transferOwnership = async (
     throw new ServiceError('Target user is not an active member of this department', 404);
   }
 
-  // Atomic: demote current owner → ADMIN, promote target → OWNER
-  await prisma.$transaction([
-    prisma.departmentMember.update({
-      where: { id: actorMembership.id },
-      data: { role: 'ADMIN' },
-    }),
-    prisma.departmentMember.update({
+  // Atomic: promote target → OWNER, demote old owner if exists
+  await prisma.$transaction(async (tx) => {
+    await tx.departmentMember.update({
       where: { id: targetMembership.id },
       data: { role: 'OWNER' },
-    }),
-  ]);
+    });
+    if (currentOwnerMembershipId) {
+      await tx.departmentMember.update({
+        where: { id: currentOwnerMembershipId },
+        data: { role: demotedRole },
+      });
+    }
+  });
+
   void activityLogRepo.create({
     actorUserId: actorId,
     departmentId,
     entityType: 'department',
     entityId: departmentId,
     action: 'ownership.transferred',
-    metadata: { from: actorId, to: newOwnerId },
+    metadata: { to: newOwnerId, demotedTo: currentOwnerMembershipId ? demotedRole : null },
   });
 };

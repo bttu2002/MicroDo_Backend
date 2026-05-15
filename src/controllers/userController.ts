@@ -54,6 +54,34 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
+export const getMyMemberships = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const memberships = await prisma.departmentMember.findMany({
+      where: { userId: req.user!.prismaId, status: 'ACTIVE' },
+      include: { department: true },
+      orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
+    });
+
+    res.status(200).json({
+      success: true,
+      data: memberships.map((m) => ({
+        id: m.id,
+        role: m.role,
+        status: m.status,
+        joinedAt: m.joinedAt,
+        department: {
+          id: m.department.id,
+          name: m.department.name,
+          description: m.department.description,
+        },
+      })),
+    });
+  } catch (error) {
+    logger.error({ err: error, requestId: req.requestId }, 'getMyMemberships failed');
+    sendError(res, req, 500, 'INTERNAL_ERROR', 'Internal server error');
+  }
+};
+
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { name, email, avatar, username, jobTitle } = res.locals.validated.body as UpdateProfileInput;

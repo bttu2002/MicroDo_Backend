@@ -40,12 +40,15 @@ export const processMentions = async (
   commentId: string,
   departmentId: string | null,
   actorId: string,
-  actorName: string | null
+  actorName: string | null,
+  taskTitle: string
 ): Promise<void> => {
   const matches = [...content.matchAll(MENTION_REGEX)].map(m => m[1]);
   if (matches.length === 0) return;
 
   const uniqueUsernames = [...new Set(matches)] as string[];
+  const actor = actorName ?? 'Someone';
+  const preview = content.length > 100 ? `${content.slice(0, 100)}…` : content;
 
   for (const username of uniqueUsernames) {
     try {
@@ -56,8 +59,8 @@ export const processMentions = async (
       await createNotification({
         userId: mentionedUser.id,
         type: 'MENTIONED_IN_COMMENT',
-        title: `${actorName ?? 'Someone'} mentioned you`,
-        message: `You were mentioned in a comment on a task`,
+        title: `${actor} mentioned you in "${taskTitle}"`,
+        message: preview,
         payload: { taskId, commentId, departmentId, actorId },
         entityType: 'comment',
         entityId: commentId,
@@ -76,16 +79,21 @@ export const notifyCommentAdded = async (
   actorName: string | null,
   taskId: string,
   commentId: string,
-  departmentId: string | null
+  departmentId: string | null,
+  taskTitle: string,
+  commentContent: string
 ): Promise<void> => {
   if (taskOwnerId === actorId) return; // don't notify self
+
+  const actor = actorName ?? 'Someone';
+  const preview = commentContent.length > 100 ? `${commentContent.slice(0, 100)}…` : commentContent;
 
   try {
     await createNotification({
       userId: taskOwnerId,
       type: 'COMMENT_ADDED',
-      title: `${actorName ?? 'Someone'} commented on your task`,
-      message: `A new comment was added to your task`,
+      title: `${actor} commented on "${taskTitle}"`,
+      message: preview,
       payload: { taskId, commentId, departmentId, actorId },
       entityType: 'comment',
       entityId: commentId,

@@ -127,12 +127,13 @@ export const createComment = async (
 
   // Notify task owner (fire-and-forget)
   void notificationService.notifyCommentAdded(
-    task.profileId, profileId, profile.name, taskId, comment.id, task.departmentId
+    task.profileId, profileId, profile.name, taskId, comment.id, task.departmentId,
+    task.title, content
   ).catch(err => logger.error({ err, context: 'notifyCommentAdded', taskId, commentId: comment.id }, 'Fire-and-forget failed'));
 
   // Parse mentions (fire-and-forget)
   void notificationService.processMentions(
-    content, taskId, comment.id, task.departmentId, profileId, profile.name
+    content, taskId, comment.id, task.departmentId, profileId, profile.name, task.title
   ).catch(err => logger.error({ err, context: 'processMentions', taskId, commentId: comment.id }, 'Fire-and-forget failed'));
 
   // Activity log (fire-and-forget)

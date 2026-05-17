@@ -11,7 +11,7 @@ const envSchema = z.object({
   FRONTEND_URL: z
     .string()
     .default('http://localhost:5173')
-    .transform(val => val.split(',').map(u => u.trim()).filter(Boolean)),
+    .transform(val => val.split(',').map(u => u.trim().replace(/\/$/, '')).filter(Boolean)),
 });
 
 export type Env = z.infer<typeof envSchema>;

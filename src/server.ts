@@ -48,7 +48,8 @@ app.use(helmet({
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (env.FRONTEND_URL.includes(origin) || env.NODE_ENV === 'development') {
+    const cleanOrigin = origin.trim().replace(/\/$/, '');
+    if (env.FRONTEND_URL.includes(cleanOrigin) || env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -184,8 +185,8 @@ process.on('unhandledRejection', (reason) => {
   void gracefulShutdown('unhandledRejection', 1);
 });
 
-httpServer.listen(env.PORT, () => {
-  logger.info({ port: env.PORT }, 'Server started');
+httpServer.listen(env.PORT, '0.0.0.0', () => {
+  logger.info({ port: env.PORT }, 'Server started on 0.0.0.0');
 });
 
 export default app;
